@@ -9,7 +9,6 @@ package main
 
 import (
 	ibus "github.com/untillpro/airs-ibus"
-	iconfig "github.com/untillpro/airs-iconfig"
 	"github.com/untillpro/godif"
 	"github.com/untillpro/godif/services"
 )
@@ -17,8 +16,5 @@ import (
 // Declare s.e.
 func Declare(service Service) {
 	godif.ProvideSliceElement(&services.Services, &service)
-	godif.Require(&iconfig.PutConfig)
-	godif.Require(&iconfig.GetConfig)
-	godif.Require(&ibus.SendResponse)
 	godif.Require(&ibus.SendRequest)
 }

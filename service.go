@@ -30,14 +30,9 @@ type routerKeyType string
 
 const routerKey = routerKeyType("router")
 
-func getService(ctx context.Context) *Service {
-	return ctx.Value(routerKey).(*Service)
-}
-
 // Start s.e.
 func (s *Service) Start(ctx context.Context) (context.Context, error) {
 	s.router = mux.NewRouter()
-	s.router.Use(JwtAuthentication)
 
 	port := strconv.Itoa(s.Port)
 

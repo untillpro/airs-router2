@@ -16,7 +16,6 @@ import (
 	"github.com/gorilla/mux"
 	ibus "github.com/untillpro/airs-ibus"
 	bus "github.com/untillpro/airs-ibusnats"
-	config "github.com/untillpro/airs-iconfigcon"
 	"github.com/untillpro/gochips"
 	"github.com/untillpro/godif/services"
 	"io/ioutil"
@@ -37,10 +36,8 @@ const (
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
 	defaultRouterReadTimeout  = 15
 	defaultRouterWriteTimeout = 15
-	chunkSize                 = 100000
 	//Content-Type
-	contentJSON      = "application/json"
-	contentPlainText = "plain/text"
+	contentJSON = "application/json"
 )
 
 var queueNumberOfPartitions = make(map[string]int)
@@ -61,21 +58,7 @@ func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 			return
 		}
 		queueRequest.Resource = vars[resourceNameVar]
-		if queueRequest.WSID == 0 {
-			writeTextResponse(resp, "partition dividend in partitioned bus must be not 0", http.StatusBadRequest)
-			return
-		}
 		queueRequest.PartitionNumber = int(queueRequest.WSID % int64(numberOfPartitions))
-		if req.Body != nil && req.Body != http.NoBody {
-			var rawJSON json.RawMessage
-			decoder := json.NewDecoder(req.Body)
-			err := decoder.Decode(&rawJSON)
-			if err != nil {
-				writeTextResponse(resp, "can't read request body: "+err.Error(), http.StatusBadRequest)
-				return
-			}
-			queueRequest.Body = rawJSON
-		}
 		chunkedResp(ctx, req, queueRequest, resp, ibus.DefaultTimeout)
 	}
 }
@@ -105,41 +88,25 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		setContentType(resp, contentJSON)
 	}
 	if outChunks != nil {
+		resp.Header().Set("X-Content-Type-Options", "nosniff")
 		for respPart := range outChunks {
 			if len(respPart) == 0 {
-				*outChunksErr = errors.New("empty response from server")
-				break
+				return
 			}
-			if respPart[0] == 0 {
-				if len(respPart) < 2 {
-					setContentType(resp, contentPlainText)
-					if _, err := resp.Write([]byte("there is no chunks for given range")); err != nil {
-						writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
-						return
-					}
-					break
-				}
-				respPart = respPart[1:]
-			}
-			resp.Header().Set("X-Content-Type-Options", "nosniff")
 			if _, err := resp.Write(respPart); err != nil {
-				setContentType(resp, contentPlainText)
-				writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
+				gochips.Error("can't write response part")
 				return
 			}
 		}
 
 		if outChunksErr != nil && *outChunksErr != nil {
-			setContentType(resp, contentPlainText)
-			respFromInvoke.Data = []byte((*outChunksErr).Error())
-			resp.WriteHeader(http.StatusInternalServerError)
-			if _, err := resp.Write(respFromInvoke.Data); err != nil {
-				writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
-			}
+			msg := (*outChunksErr).Error()
+			gochips.Error("error in chunks: " + msg)
 		}
 	} else {
+		resp.WriteHeader(respFromInvoke.StatusCode)
 		if _, err := resp.Write(respFromInvoke.Data); err != nil {
-			writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
+			gochips.Error("can't write response")
 		}
 	}
 }
@@ -147,11 +114,9 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 // QueueNamesHandler returns registered queue names
 func (s *Service) QueueNamesHandler() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
-		keys := make([]string, len(queueNumberOfPartitions))
-		i := 0
+		keys := make([]string, 0, len(queueNumberOfPartitions))
 		for k := range queueNumberOfPartitions {
-			keys[i] = k
-			i++
+			keys = append(keys, k)
 		}
 		marshaled, err := json.Marshal(keys)
 		if err != nil {
@@ -173,27 +138,24 @@ func (s *Service) CheckHandler() http.HandlerFunc {
 
 func createRequest(reqMethod string, req *http.Request) (*ibus.Request, error) {
 	vars := mux.Vars(req)
-	WSID := vars[wSIDVar]
-	WSIDNum, err := strconv.ParseInt(WSID, 10, 64)
-	if err != nil {
-		return nil, errors.New("wrong partition dividend " + WSID)
+	var WSID string
+	var ok bool
+	if WSID, ok = vars[wSIDVar]; !ok {
+		return nil, errors.New("WSID is missed")
 	}
+	// no need to check to err because of regexp in a handler
+	WSIDNum, _ := strconv.ParseInt(WSID, 10, 64)
 	return &ibus.Request{
-		Method:      ibus.NameToHTTPMethod[reqMethod],
-		QueueID:     vars[queueAliasVar],
-		WSID:        WSIDNum,
-		Query:       req.URL.Query(),
-		Attachments: map[string]string{},
-		Header:      req.Header,
+		Method:  ibus.NameToHTTPMethod[reqMethod],
+		QueueID: vars[queueAliasVar],
+		WSID:    WSIDNum,
+		Query:   req.URL.Query(),
+		Header:  req.Header,
 	}, nil
 }
 
 // RegisterHandlers s.e.
 func (s *Service) RegisterHandlers(ctx context.Context) {
-	//Auth
-	s.router.HandleFunc("/api/user/new", corsHandler(s.CreateAccount(ctx))).Methods("POST", "OPTIONS")
-	s.router.HandleFunc("/api/user/login", corsHandler(s.Authenticate(ctx))).Methods("POST", "OPTIONS")
-	//Auth
 	s.router.HandleFunc("/api/check", corsHandler(s.CheckHandler())).Methods("POST", "OPTIONS")
 	s.router.HandleFunc("/api", corsHandler(s.QueueNamesHandler()))
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}", queueAliasVar, wSIDVar), corsHandler(s.PartitionedHandler(ctx))).
@@ -208,8 +170,6 @@ func addHandlers() {
 }
 
 func main() {
-	var consulHost = flag.String("ch", config.DefaultConsulHost, "Consul server URL")
-	var consulPort = flag.Int("cp", config.DefaultConsulPort, "Consul port")
 	var natsServers = flag.String("ns", bus.DefaultNATSHost, "The nats server URLs (separated by comma)")
 	var routerPort = flag.Int("p", defaultRouterPort, "Server port")
 	var routerWriteTimeout = flag.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
@@ -221,7 +181,6 @@ func main() {
 
 	addHandlers()
 
-	config.Declare(config.Service{Host: *consulHost, Port: uint16(*consulPort)})
 	bus.Declare(bus.Service{NATSServers: *natsServers, Queues: queueNumberOfPartitions})
 	Declare(Service{Port: *routerPort, WriteTimeout: *routerWriteTimeout, ReadTimeout: *routerReadTimeout,
 		ConnectionsLimit: *routerConnectionsLimit})
