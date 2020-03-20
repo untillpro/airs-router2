@@ -46,13 +46,13 @@ var queueNumberOfPartitions = make(map[string]int)
 // PartitionedHandler handle partitioned requests
 func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
-		gochips.Verbose("router2: incoming request", req)
+		gochips.Info("router2: incoming request", req)
 		vars := mux.Vars(req)
 		var ok bool
 		var numberOfPartitions int
 		if numberOfPartitions, ok = queueNumberOfPartitions[vars[queueAliasVar]]; !ok {
 			writeTextResponse(resp, "can't find queue for alias: "+vars[queueAliasVar], http.StatusBadRequest)
-			gochips.Verbose("can't find queue for alias: "+vars[queueAliasVar])
+			gochips.Info("can't find queue for alias: "+vars[queueAliasVar])
 			return
 		}
 		queueRequest, err := createRequest(req.Method, req)
@@ -76,13 +76,13 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		}
 		queueRequest.Body = body
 	}
-	gochips.Verbose("chunkedResp: before ibus.SendRequest")
+	gochips.Info("chunkedResp: before ibus.SendRequest")
 	respFromInvoke, outChunks, outChunksErr, err := ibus.SendRequest(ctx, queueRequest, timeout)
 	if err != nil {
 		writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	gochips.Verbose("chunkedResp:response: ", respFromInvoke)
+	gochips.Info("chunkedResp:response: ", respFromInvoke)
 	if respFromInvoke == nil {
 		writeTextResponse(resp, "nil response from bus", http.StatusInternalServerError)
 		return
@@ -94,7 +94,7 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 	}
 	if outChunks != nil {
 		resp.Header().Set("X-Content-Type-Options", "nosniff")
-		gochips.Verbose("chunkedResp:reading outChunaks...")
+		gochips.Info("chunkedResp:reading outChunaks...")
 		for respPart := range outChunks {
 			if len(respPart) == 0 {
 				return
