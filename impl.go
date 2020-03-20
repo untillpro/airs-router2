@@ -75,11 +75,13 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		}
 		queueRequest.Body = body
 	}
+	gochips.Verbose("chunkedResp: before ibus.SendRequest")
 	respFromInvoke, outChunks, outChunksErr, err := ibus.SendRequest(ctx, queueRequest, timeout)
 	if err != nil {
 		writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	gochips.Verbose("chunkedResp:response: ", respFromInvoke)
 	if respFromInvoke == nil {
 		writeTextResponse(resp, "nil response from bus", http.StatusInternalServerError)
 		return
@@ -91,6 +93,7 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 	}
 	if outChunks != nil {
 		resp.Header().Set("X-Content-Type-Options", "nosniff")
+		gochips.Verbose("chunkedResp:reading outChunaks...")
 		for respPart := range outChunks {
 			if len(respPart) == 0 {
 				return
