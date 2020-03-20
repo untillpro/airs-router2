@@ -52,6 +52,7 @@ func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 		var numberOfPartitions int
 		if numberOfPartitions, ok = queueNumberOfPartitions[vars[queueAliasVar]]; !ok {
 			writeTextResponse(resp, "can't find queue for alias: "+vars[queueAliasVar], http.StatusBadRequest)
+			gochips.Verbose("can't find queue for alias: "+vars[queueAliasVar])
 			return
 		}
 		queueRequest, err := createRequest(req.Method, req)
