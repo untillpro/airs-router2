@@ -13,15 +13,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/gorilla/mux"
 	ibus "github.com/untillpro/airs-ibus"
 	bus "github.com/untillpro/airs-ibusnats"
 	"github.com/untillpro/gochips"
 	"github.com/untillpro/godif/services"
-	"io/ioutil"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 const (
@@ -45,6 +46,7 @@ var queueNumberOfPartitions = make(map[string]int)
 // PartitionedHandler handle partitioned requests
 func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
+		gochips.Verbose("router2: incoming request", req)
 		vars := mux.Vars(req)
 		var ok bool
 		var numberOfPartitions int
