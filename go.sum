@@ -33,10 +33,14 @@ github.com/untillpro/airs-iconfigcon v0.0.0-20190715123734-41d912ce7c51 h1:mBdt8
 github.com/untillpro/airs-iconfigcon v0.0.0-20190715123734-41d912ce7c51/go.mod h1:L6EalfyIt5E5kZeH/hYQ4sci7ub29qmTqvnPITPr2ww=
 github.com/untillpro/gochips v1.9.0 h1:RpvKppiix6uzKSVBBQNlrD17dk7QCtVLw3EBNDOH5DI=
 github.com/untillpro/gochips v1.9.0/go.mod h1:us8QSJtQx+8SiWFqh2oAT7UMzhF73t21p3WFGn6Apao=
+github.com/untillpro/gochips v1.12.1-0.20191205115612-9cd10d0ac2b3 h1:6FcNUgKOtK6UqrjFGlW80WfrwgLjZPBdpUadFkw3mRw=
+github.com/untillpro/gochips v1.12.1-0.20191205115612-9cd10d0ac2b3/go.mod h1:us8QSJtQx+8SiWFqh2oAT7UMzhF73t21p3WFGn6Apao=
 github.com/untillpro/godif v0.12.0 h1:S060zVVf9hXMTkm6bekDqqlZwVxduiIByGl7N/M1kHg=
 github.com/untillpro/godif v0.12.0/go.mod h1:v/TEwBrNu5MAS/1ylN50PikeZvPyMKjj8SeODKqIbpw=
 github.com/untillpro/godif v0.15.0 h1:88ISBP3sOLvLXtIi6QCb3/D599vX9JcQWe+TPno/DBQ=
 github.com/untillpro/godif v0.15.0/go.mod h1:8cfhSrXUuGv+AeNSRtelcGlIYF7Y7EKhcEp3o0t7gzo=
+github.com/untillpro/godif v0.18.0 h1:m3/5jc8oJCyU5lYHeZwG0deq+lYoCXNFqAwVMhiQ+Ks=
+github.com/untillpro/godif v0.18.0/go.mod h1:Yi639zQ/XMuW5ArnXOqs1zx+7o9POvgmtgaNyDh1lUE=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2 h1:VklqNMn3ovrHsnt90PveolxSbWFaJdECFbxSq0Mqo2M=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4 h1:HuIa8hRrWRSrqYzx1qI49NNxhdi2PrY7gxVSq1JjLDc=
