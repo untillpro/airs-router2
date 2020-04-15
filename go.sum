@@ -19,6 +19,9 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.2.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoHMkEqE=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
+github.com/untillpro/airs-ibus v0.0.0-20200210150646-efe9a3524a2d/go.mod h1:zqh638zl3oFrLFQB+J1XwAUe9K3gELMbFcX6AboeWq4=
+github.com/untillpro/airs-ibus v0.0.0-20200414104051-7a52bdda4652 h1:n4Hy0U6y4IRW3WuS60RU8VAd7vE2WjVUzGU/bVPrWj4=
+github.com/untillpro/airs-ibus v0.0.0-20200414104051-7a52bdda4652/go.mod h1:zqh638zl3oFrLFQB+J1XwAUe9K3gELMbFcX6AboeWq4=
 github.com/untillpro/airs-ibusnats v0.0.0-20200325132555-c4577a1d8f71 h1:Ox74YiS3J8sCrxTvOaHgv/4Py5FEBw61HNHiLQYAm+s=
 github.com/untillpro/airs-ibusnats v0.0.0-20200325132555-c4577a1d8f71/go.mod h1:j1dk83biGMGTRr6Op92M6zWCki82+ikATfgy06U9hOY=
 github.com/untillpro/gochips v1.12.0 h1:dqpXSAlg8YanktfK49GBAsZEjL3cwrXQ6xDAFOF79uU=
