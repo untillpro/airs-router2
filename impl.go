@@ -8,20 +8,23 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/gorilla/mux"
 	ibus "github.com/untillpro/airs-ibus"
 	bus "github.com/untillpro/airs-ibusnats"
 	"github.com/untillpro/gochips"
 	"github.com/untillpro/godif/services"
-	"io/ioutil"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 const (
@@ -73,41 +76,130 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		}
 		queueRequest.Body = body
 	}
+
 	respFromInvoke, outChunks, outChunksErr, err := ibus.SendRequest(ctx, queueRequest, timeout)
-	if err != nil {
-		writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if respFromInvoke == nil {
-		writeTextResponse(resp, "nil response from bus", http.StatusInternalServerError)
-		return
-	}
 	if respFromInvoke.ContentType != "" {
 		setContentType(resp, respFromInvoke.ContentType)
+		if err != nil {
+			writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if respFromInvoke == nil {
+			writeTextResponse(resp, "nil response from bus", http.StatusInternalServerError)
+			return
+		}
 	} else {
 		setContentType(resp, contentJSON)
+		if err != nil {
+			resp.WriteHeader(http.StatusInternalServerError)
+			_, err := resp.Write([]byte(err.Error()))
+			if err != nil {
+				gochips.Error(err)
+			}
+			return
+		}
+		if respFromInvoke == nil {
+			resp.WriteHeader(http.StatusInternalServerError)
+			_, err := resp.Write([]byte("nil response from bus"))
+			if err != nil {
+				gochips.Error(err)
+			}
+			return
+		}
 	}
-	if outChunks != nil {
-		resp.Header().Set("X-Content-Type-Options", "nosniff")
-		for respPart := range outChunks {
-			if len(respPart) == 0 {
-				return
+	intfChunks, outChunksErrConverted := ibus.DecodedChan(outChunks, outChunksErr)
+	resp.Header().Set("X-Content-Type-Options", "nosniff")
+	sectionsOpened := false
+	elementsOpened := false
+	elementsFinalizer := ""
+	currentSectionKind := ibus.SectionKindUnspecified
+	buf := bytes.NewBufferString("")
+	for respPart := range intfChunks {
+		buf.Reset()
+		switch chunk := respPart.(type) {
+		case []byte:
+			buf.Write(chunk)
+		case *ibus.Section:
+			if elementsOpened {
+				buf.WriteString(elementsFinalizer)
+				elementsOpened = false
 			}
-			if _, err := resp.Write(respPart); err != nil {
-				gochips.Error("can't write response part")
-				return
+			if !sectionsOpened {
+				buf.WriteString(`{"sections":[`)
+				sectionsOpened = true
+			} else {
+				buf.WriteString("},")
 			}
+			buf.WriteString("{")
+			if chunk.SectionKind != ibus.SectionKindObject {
+				buf.WriteString(fmt.Sprintf(`"type":"%s",`, chunk.SectionType))
+			}
+			buf.WriteString(`"path":[`)
+			for _, path := range chunk.Path {
+				buf.WriteString(fmt.Sprintf(`"%s",`, path))
+			}
+			if len(chunk.Path) > 0 {
+				buf.Truncate(buf.Len() - 1)
+			}
+			buf.WriteString(`],"elements":`)
+			switch chunk.SectionKind {
+			case ibus.SectionKindArray:
+				buf.WriteString("[")
+				elementsFinalizer = "]"
+			case ibus.SectionKindMap:
+				buf.WriteString("{")
+				elementsFinalizer = "}"
+			case ibus.SectionKindObject:
+				elementsFinalizer = ""
+			}
+			elementsOpened = false
+			currentSectionKind = chunk.SectionKind
+		case *ibus.Element:
+			if elementsOpened {
+				buf.WriteString(",")
+			}
+			if currentSectionKind == ibus.SectionKindMap {
+				buf.WriteString(fmt.Sprintf(`"%s":`, chunk.Name))
+			}
+			buf.Write(chunk.Value)
+			elementsOpened = true
+		default:
+			err := fmt.Errorf("unsupported chunk type: %v", respPart)
+			gochips.Error(err)
+			outChunksErrConverted = &err
+			for range intfChunks {
+			}
+			continue
 		}
-
-		if outChunksErr != nil && *outChunksErr != nil {
-			msg := (*outChunksErr).Error()
-			gochips.Error("error in chunks: " + msg)
+		if _, err := resp.Write(buf.Bytes()); err != nil {
+			gochips.Error("can't write response part")
+			return
 		}
+	}
+	buf.Reset()
+	if elementsOpened {
+		buf.WriteString(elementsFinalizer)
+	}
+	if sectionsOpened {
+		buf.WriteString("}],")
 	} else {
-		resp.WriteHeader(respFromInvoke.StatusCode)
-		if _, err := resp.Write(respFromInvoke.Data); err != nil {
-			gochips.Error("can't write response")
-		}
+		buf.WriteString("{")
+	}
+	status := http.StatusOK
+	msg := ""
+	if outChunksErrConverted != nil && *outChunksErrConverted != nil {
+		msg = (*outChunksErrConverted).Error()
+		gochips.Error("error in chunks: " + msg)
+		status = http.StatusInternalServerError
+	}
+	buf.WriteString(fmt.Sprintf(`"status":%d`, status))
+	if len(msg) > 0 {
+		replacer := strings.NewReplacer("\n", " ", "\t", " ", "\r", " ")
+		buf.WriteString(fmt.Sprintf(`,"errorDescription": "%s"`, replacer.Replace(msg)))
+	}
+	buf.WriteString("}")
+	if _, err := resp.Write(buf.Bytes()); err != nil {
+		gochips.Error("can't write response part", err)
 	}
 }
 
@@ -129,7 +221,7 @@ func (s *Service) QueueNamesHandler() http.HandlerFunc {
 	}
 }
 
-// Check returns ok if server works
+// CheckHandler returns ok if server works
 func (s *Service) CheckHandler() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		resp.Write([]byte("ok"))
