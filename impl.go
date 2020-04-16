@@ -85,7 +85,7 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		errorDesc = err.Error()
 	} else if respFromInvoke == nil {
 		errorDesc = "nil response from bus"
-	} else {
+	} else if string(respFromInvoke.Data) != "null" {
 		data = respFromInvoke.Data
 	}
 
