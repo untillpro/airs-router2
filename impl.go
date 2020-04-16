@@ -91,7 +91,7 @@ func getRespData(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		}
 		if sectionsOpened {
 			buf.Truncate(buf.Len() - 1)
-			buf.WriteString("],")
+			buf.WriteString("]")
 		}
 	}
 	if outChunksErr != nil && *outChunksErr != nil {
@@ -114,6 +114,16 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 	}
 
 	sections, status, errorDesc, data := getRespData(ctx, req, queueRequest, resp, timeout)
+	dataJSON := ""
+	if len(data) > 0 && string(data) != "null" {
+		dataJSONBytes, err := json.Marshal(string(data))
+		if err != nil {
+			gochips.Error(err)
+			writeTextResponse(resp, "can't marshal data from response: "+err.Error()+"\n"+string(data), http.StatusBadRequest)
+			return
+		}
+		dataJSON = string(dataJSONBytes)
+	}
 	setContentType(resp, "application/json")
 	resp.WriteHeader(http.StatusOK)
 
@@ -127,9 +137,8 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		replacer := strings.NewReplacer("\n", " ", "\t", " ", "\r", " ")
 		buf.WriteString(fmt.Sprintf(`,"errorDescription": "%s"`, replacer.Replace(errorDesc)))
 	}
-	if len(data) > 0 && string(data) != "null" {
-		buf.WriteString(`,"data":`)
-		buf.Write(data)
+	if len(dataJSON) > 0 {
+		buf.WriteString(fmt.Sprintf(`,"data":%s`, dataJSON))
 	}
 	buf.WriteString("}")
 	if _, err := resp.Write(buf.Bytes()); err != nil {

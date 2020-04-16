@@ -20,7 +20,7 @@ func TestChunkedRespISections(t *testing.T) {
 	ibusReq := &ibus.Request{}
 	resp := httptest.NewRecorder()
 	ibus.SendRequest = func(ctx context.Context, request *ibus.Request, timeout time.Duration) (res *ibus.Response, chunks <-chan []byte, chunksError *error, err error) {
-		res = &ibus.Response{}
+		res = &ibus.Response{StatusCode: http.StatusOK}
 		var chunksErrorRes *error
 		rsi := parallel.NewResultSender()
 		go func() {
@@ -119,7 +119,7 @@ func TestChunkedRespISectionsError(t *testing.T) {
 	ibusReq := &ibus.Request{}
 	resp := httptest.NewRecorder()
 	ibus.SendRequest = func(ctx context.Context, request *ibus.Request, timeout time.Duration) (res *ibus.Response, chunks <-chan []byte, chunksError *error, err error) {
-		res = &ibus.Response{}
+		res = &ibus.Response{StatusCode: http.StatusOK}
 		rsi := parallel.NewResultSender()
 		var chunksErrorRes error
 		go func() {
@@ -167,7 +167,7 @@ func TestChunkedRespNoSections(t *testing.T) {
 	ibusReq := &ibus.Request{}
 	resp := httptest.NewRecorder()
 	ibus.SendRequest = func(ctx context.Context, request *ibus.Request, timeout time.Duration) (res *ibus.Response, chunks <-chan []byte, chunksError *error, err error) {
-		res = &ibus.Response{}
+		res = &ibus.Response{StatusCode: http.StatusOK}
 		rsi := parallel.NewResultSender()
 		var chunksErrorRes error
 		close(rsi.Chunks)
@@ -190,7 +190,7 @@ func TestPanicOnConvertToISections(t *testing.T) {
 	ibusReq := &ibus.Request{}
 	resp := httptest.NewRecorder()
 	ibus.SendRequest = func(ctx context.Context, request *ibus.Request, timeout time.Duration) (res *ibus.Response, chunks <-chan []byte, chunksError *error, err error) {
-		res = &ibus.Response{}
+		res = &ibus.Response{StatusCode: http.StatusOK}
 		var chunksErrorRes error
 		ch := make(chan []byte)
 		go func() {
