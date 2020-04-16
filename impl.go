@@ -76,7 +76,7 @@ func getRespData(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		return nil, http.StatusInternalServerError, "nil response from bus", nil
 	}
 
-	buf := bytes.NewBufferString("{")
+	buf := bytes.NewBufferString("")
 	if len(errorDesc) == 0 && outChunks != nil {
 		sections := ibus.BytesToSections(outChunks, outChunksErr)
 		resp.Header().Set("X-Content-Type-Options", "nosniff")
