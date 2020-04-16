@@ -66,27 +66,14 @@ func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 	}
 }
 
-func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) {
-	if req.Body != nil && req.Body != http.NoBody {
-		body, err := ioutil.ReadAll(req.Body)
-		if err != nil {
-			gochips.Error(err)
-			writeTextResponse(resp, "can't read request body: "+string(body), http.StatusBadRequest)
-			return
-		}
-		queueRequest.Body = body
-	}
-
+func getRespData(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) (sections []byte, status int, errorDesc string, data []byte) {
 	respFromInvoke, outChunks, outChunksErr, err := ibus.SendRequest(ctx, queueRequest, timeout)
 	setContentType(resp, contentJSON)
-	errorDesc := ""
-	data := []byte{}
 	if err != nil {
-		errorDesc = err.Error()
-	} else if respFromInvoke == nil {
-		errorDesc = "nil response from bus"
-	} else if string(respFromInvoke.Data) != "null" {
-		data = respFromInvoke.Data
+		return nil, http.StatusInternalServerError, err.Error(), nil
+	}
+	if respFromInvoke == nil {
+		return nil, http.StatusInternalServerError, "nil response from bus", nil
 	}
 
 	buf := bytes.NewBufferString("{")
@@ -107,19 +94,41 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 			buf.WriteString("],")
 		}
 	}
-	status := http.StatusOK
-	if len(errorDesc) == 0 && outChunksErr != nil && *outChunksErr != nil {
+	if outChunksErr != nil && *outChunksErr != nil {
 		errorDesc = (*outChunksErr).Error()
 		gochips.Error("error in chunks: " + errorDesc)
-		status = http.StatusInternalServerError
+		return buf.Bytes(), http.StatusInternalServerError, errorDesc, nil
+	}
+	return buf.Bytes(), respFromInvoke.StatusCode, "", respFromInvoke.Data
+}
+
+func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) {
+	if req.Body != nil && req.Body != http.NoBody {
+		body, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			gochips.Error(err)
+			writeTextResponse(resp, "can't read request body: "+string(body), http.StatusBadRequest)
+			return
+		}
+		queueRequest.Body = body
+	}
+
+	sections, status, errorDesc, data := getRespData(ctx, req, queueRequest, resp, timeout)
+	setContentType(resp, "application/json")
+	resp.WriteHeader(http.StatusOK)
+
+	buf := bytes.NewBufferString("{")
+	if len(sections) > 0 {
+		buf.Write(sections)
+		buf.WriteString(",")
 	}
 	buf.WriteString(fmt.Sprintf(`"status":%d`, status))
 	if len(errorDesc) > 0 {
 		replacer := strings.NewReplacer("\n", " ", "\t", " ", "\r", " ")
 		buf.WriteString(fmt.Sprintf(`,"errorDescription": "%s"`, replacer.Replace(errorDesc)))
 	}
-	if len(data) > 0 {
-		buf.WriteString(`,"data": `)
+	if len(data) > 0 && string(data) != "null" {
+		buf.WriteString(`,"data":`)
 		buf.Write(data)
 	}
 	buf.WriteString("}")
