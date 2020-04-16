@@ -14,7 +14,7 @@ import (
 	parallel "github.com/untillpro/airs-icoreimpl/parallel"
 )
 
-func TestChunkedRespIntfChan(t *testing.T) {
+func TestChunkedRespISections(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -113,7 +113,7 @@ func TestChunkedRespIntfChan(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestChunkedRespIntfChanError(t *testing.T) {
+func TestChunkedRespISectionsError(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -184,7 +184,7 @@ func TestChunkedRespNoSections(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestPanicOnConvert(t *testing.T) {
+func TestPanicOnConvertToISections(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -200,7 +200,7 @@ func TestPanicOnConvert(t *testing.T) {
 		return res, ch, &chunksErrorRes, nil
 	}
 
-	chunkedResp(ctx, req, ibusReq, resp, 100000*time.Millisecond)
+	chunkedResp(ctx, req, ibusReq, resp, 1000*time.Millisecond)
 
 	actual := map[string]interface{}{}
 	require.Nil(t, json.Unmarshal(resp.Body.Bytes(), &actual))

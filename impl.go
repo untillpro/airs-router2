@@ -78,124 +78,49 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 	}
 
 	respFromInvoke, outChunks, outChunksErr, err := ibus.SendRequest(ctx, queueRequest, timeout)
-	if respFromInvoke.ContentType != "" {
-		setContentType(resp, respFromInvoke.ContentType)
-		if err != nil {
-			writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if respFromInvoke == nil {
-			writeTextResponse(resp, "nil response from bus", http.StatusInternalServerError)
-			return
-		}
+	setContentType(resp, contentJSON)
+	errorDesc := ""
+	data := []byte{}
+	if err != nil {
+		errorDesc = err.Error()
+	} else if respFromInvoke == nil {
+		errorDesc = "nil response from bus"
 	} else {
-		setContentType(resp, contentJSON)
-		if err != nil {
-			resp.WriteHeader(http.StatusInternalServerError)
-			_, err := resp.Write([]byte(err.Error()))
-			if err != nil {
-				gochips.Error(err)
-			}
-			return
-		}
-		if respFromInvoke == nil {
-			resp.WriteHeader(http.StatusInternalServerError)
-			_, err := resp.Write([]byte("nil response from bus"))
-			if err != nil {
-				gochips.Error(err)
-			}
-			return
-		}
+		data = respFromInvoke.Data
 	}
-	intfChunks, outChunksErrConverted := ibus.DecodedChan(outChunks, outChunksErr)
-	resp.Header().Set("X-Content-Type-Options", "nosniff")
-	sectionsOpened := false
-	elementsOpened := false
-	elementsFinalizer := ""
-	currentSectionKind := ibus.SectionKindUnspecified
-	buf := bytes.NewBufferString("")
-	for respPart := range intfChunks {
-		buf.Reset()
-		switch chunk := respPart.(type) {
-		case []byte:
-			buf.Write(chunk)
-		case *ibus.Section:
-			if elementsOpened {
-				buf.WriteString(elementsFinalizer)
-				elementsOpened = false
-			}
+
+	buf := bytes.NewBufferString("{")
+	if len(errorDesc) == 0 && outChunks != nil {
+		sections := ibus.BytesToSections(outChunks, outChunksErr)
+		resp.Header().Set("X-Content-Type-Options", "nosniff")
+		sectionsOpened := false
+		for iSection := range sections {
 			if !sectionsOpened {
-				buf.WriteString(`{"sections":[`)
+				buf.WriteString(`"sections":[`)
 				sectionsOpened = true
-			} else {
-				buf.WriteString("},")
 			}
-			buf.WriteString("{")
-			if chunk.SectionKind != ibus.SectionKindObject {
-				buf.WriteString(fmt.Sprintf(`"type":"%s",`, chunk.SectionType))
-			}
-			buf.WriteString(`"path":[`)
-			for _, path := range chunk.Path {
-				buf.WriteString(fmt.Sprintf(`"%s",`, path))
-			}
-			if len(chunk.Path) > 0 {
-				buf.Truncate(buf.Len() - 1)
-			}
-			buf.WriteString(`],"elements":`)
-			switch chunk.SectionKind {
-			case ibus.SectionKindArray:
-				buf.WriteString("[")
-				elementsFinalizer = "]"
-			case ibus.SectionKindMap:
-				buf.WriteString("{")
-				elementsFinalizer = "}"
-			case ibus.SectionKindObject:
-				elementsFinalizer = ""
-			}
-			elementsOpened = false
-			currentSectionKind = chunk.SectionKind
-		case *ibus.Element:
-			if elementsOpened {
-				buf.WriteString(",")
-			}
-			if currentSectionKind == ibus.SectionKindMap {
-				buf.WriteString(fmt.Sprintf(`"%s":`, chunk.Name))
-			}
-			buf.Write(chunk.Value)
-			elementsOpened = true
-		default:
-			err := fmt.Errorf("unsupported chunk type: %v", respPart)
-			gochips.Error(err)
-			outChunksErrConverted = &err
-			for range intfChunks {
-			}
-			continue
+			iSection.ToJSON(buf)
+			buf.WriteString(",")
 		}
-		if _, err := resp.Write(buf.Bytes()); err != nil {
-			gochips.Error("can't write response part")
-			return
+		if sectionsOpened {
+			buf.Truncate(buf.Len() - 1)
+			buf.WriteString("],")
 		}
-	}
-	buf.Reset()
-	if elementsOpened {
-		buf.WriteString(elementsFinalizer)
-	}
-	if sectionsOpened {
-		buf.WriteString("}],")
-	} else {
-		buf.WriteString("{")
 	}
 	status := http.StatusOK
-	msg := ""
-	if outChunksErrConverted != nil && *outChunksErrConverted != nil {
-		msg = (*outChunksErrConverted).Error()
-		gochips.Error("error in chunks: " + msg)
+	if len(errorDesc) == 0 && outChunksErr != nil && *outChunksErr != nil {
+		errorDesc = (*outChunksErr).Error()
+		gochips.Error("error in chunks: " + errorDesc)
 		status = http.StatusInternalServerError
 	}
 	buf.WriteString(fmt.Sprintf(`"status":%d`, status))
-	if len(msg) > 0 {
+	if len(errorDesc) > 0 {
 		replacer := strings.NewReplacer("\n", " ", "\t", " ", "\r", " ")
-		buf.WriteString(fmt.Sprintf(`,"errorDescription": "%s"`, replacer.Replace(msg)))
+		buf.WriteString(fmt.Sprintf(`,"errorDescription": "%s"`, replacer.Replace(errorDesc)))
+	}
+	if len(data) > 0 {
+		buf.WriteString(`,"data": `)
+		buf.Write(data)
 	}
 	buf.WriteString("}")
 	if _, err := resp.Write(buf.Bytes()); err != nil {
