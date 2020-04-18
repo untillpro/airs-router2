@@ -54,6 +54,9 @@ github.com/untillpro/airs-scheme v0.0.0-20200403190343-ddaa97bf8ef0/go.mod h1:x9
 github.com/untillpro/dynobuffers v0.0.0-20200221142904-63022ce33ece/go.mod h1:n/ZudHkOPMSlSSlVU5lx7/ND55Amxue2D/rSAmQ0YkQ=
 github.com/untillpro/dynobuffers v0.0.0-20200409120645-887ee34375dc h1:/LJaOc4kgXFiOgtJz0lxQZAmEEPlhyYgOpml2njGc+s=
 github.com/untillpro/dynobuffers v0.0.0-20200409120645-887ee34375dc/go.mod h1:zKgoyUTXRFKuFUF/oBp+jzVyKyXpbEJ8qM8fTqDMp04=
+github.com/untillpro/dynobuffers v0.0.0-20200416095045-ee5e967fafcd h1:CnXC4tjxB9q6lcJWfotx91C0oG56gjTeMov1BgME8Xg=
+github.com/untillpro/dynobuffers v0.0.0-20200416095045-ee5e967fafcd/go.mod h1:zKgoyUTXRFKuFUF/oBp+jzVyKyXpbEJ8qM8fTqDMp04=
+github.com/untillpro/dynobuffers v0.0.0-20200416150259-da8f46749657/go.mod h1:zKgoyUTXRFKuFUF/oBp+jzVyKyXpbEJ8qM8fTqDMp04=
 github.com/untillpro/gochips v1.9.0/go.mod h1:us8QSJtQx+8SiWFqh2oAT7UMzhF73t21p3WFGn6Apao=
 github.com/untillpro/gochips v1.10.0/go.mod h1:us8QSJtQx+8SiWFqh2oAT7UMzhF73t21p3WFGn6Apao=
 github.com/untillpro/gochips v1.12.0 h1:dqpXSAlg8YanktfK49GBAsZEjL3cwrXQ6xDAFOF79uU=

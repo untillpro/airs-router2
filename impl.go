@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -67,6 +68,14 @@ func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 }
 
 func getRespData(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) (sections []byte, status int, errorDesc string, data []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			errorDesc = fmt.Sprintf("%s\n%s", r, string(debug.Stack()))
+			gochips.Error(errorDesc)
+			status = http.StatusInternalServerError
+			return
+		}
+	}()
 	respFromInvoke, outChunks, outChunksErr, err := ibus.SendRequest(ctx, queueRequest, timeout)
 	setContentType(resp, contentJSON)
 	if err != nil {
