@@ -264,3 +264,55 @@ func writeTextResponse(w http.ResponseWriter, msg string, code int) {
 func setContentType(resp http.ResponseWriter, cType string) {
 	resp.Header().Set(contentType, cType)
 }
+
+func writeHeader(buf *bytes.Buffer, sec ibus.IDataSection) (res [][]byte){
+	
+	buf.WriteString("{")
+	if len(sec.Type()) > 0 {
+		buf.WriteString(fmt.Sprintf(`"type":"%s"`, sec.Type()))
+	}
+	if len(sec.Path()) > 0 {
+		buf.WriteString(`%s"path":[`)
+		for _, p := range sec.Path() {
+			buf.WriteString(fmt.Sprintf(`"%s",`, p))
+		}
+		buf.Truncate(buf.Len()-1)
+		buf.WriteString("]")
+	}
+}
+
+func sectionToJSON(isec ibus.ISection) []byte {
+	buf := bytes.NewBufferString("{")
+	sec:= isec.(ibus.IDataSection)
+	buf.WriteString("{")
+	if len(sec.Type()) > 0 {
+		buf.WriteString(fmt.Sprintf(`"type":"%s"`, sec.Type()))
+	}
+	if len(sec.Path()) > 0 {
+		buf.WriteString(`,"path":[`)
+		for _, p := range sec.Path() {
+			buf.WriteString(fmt.Sprintf(`"%s",`, p))
+		}
+		buf.Truncate(buf.Len()-1)
+		buf.WriteString("]")
+	}
+	switch sec := isec.(type){
+	case ibus.IArraySection:
+		writeHeader(buf, sec)
+		val, ok := sec.Next()
+		if ok {
+			buf.WriteString(`,"elements":[`)
+			for ok {
+				buf.Write(val)
+				buf.WriteString(",")
+				val, ok = sec.Next()
+			}
+			buf.Truncate(buf.Len()-1)
+			buf.WriteString("]")	
+		}
+		buf.WriteString("}")
+	case ibus.IObjectSection :
+		writeHeader(buf, sec)
+
+	}
+}

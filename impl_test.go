@@ -47,7 +47,7 @@ func TestChunkedRespBasicUsage(t *testing.T) {
 		   }
 		],
 		"status": 200
-	 }`
+	}`
 
 	expected := map[string]interface{}{}
 	require.Nil(t, json.Unmarshal([]byte(expectedJSON), &expected))
