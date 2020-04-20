@@ -13,6 +13,12 @@ import (
 	ibus "github.com/untillpro/airs-ibus"
 )
 
+var (
+	elem1 = map[string]interface{}{"fld1": "fld1Val"}
+	elem2 = []interface{}{"e1", "e2"}
+	elem3 = map[string]interface{}{"total": 1}
+)
+
 func TestChunkedRespBasicUsage(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
@@ -24,9 +30,11 @@ func TestChunkedRespBasicUsage(t *testing.T) {
 		ch := make(chan []byte)
 		rsi := ibus.NewResultSender(ch)
 		go func() {
-			rsi.ObjectSection("obj", []string{"meta"}, map[string]interface{}{
-				"total": 1,
-			})
+			rsi.ObjectSection("obj", []string{"meta"}, elem3)
+			rsi.StartMapSection("secMap", []string{"2"})
+			rsi.SendElement("id1", elem1)
+			rsi.StartArraySection("secArr", []string{"3"})
+			rsi.SendElement("id2", elem2)
 			close(ch)
 		}()
 		return res, ch, chunksErrorRes, nil
@@ -44,7 +52,28 @@ func TestChunkedRespBasicUsage(t *testing.T) {
 				 "meta"
 			  ],
 			  "type": "obj"
-		   }
+		   },
+			{
+				"type": "secMap",
+				"path": [
+					"2"
+				],
+				"elements": {
+					"id1": {
+						"fld1": "fld1Val"
+					}
+				}
+			},
+			{
+				"type": "secArr",
+				"path": [
+					"3"
+				],
+				"elements": [
+					"e1",
+					"e2"
+				]
+		 	}
 		],
 		"status": 200
 	}`

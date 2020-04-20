@@ -95,7 +95,7 @@ func getRespData(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 				buf.WriteString(`"sections":[`)
 				sectionsOpened = true
 			}
-			iSection.ToJSON(buf)
+			buf.Write(sectionToJSON(iSection))
 			buf.WriteString(",")
 		}
 		if sectionsOpened {
@@ -265,54 +265,72 @@ func setContentType(resp http.ResponseWriter, cType string) {
 	resp.Header().Set(contentType, cType)
 }
 
-func writeHeader(buf *bytes.Buffer, sec ibus.IDataSection) (res [][]byte){
-	
-	buf.WriteString("{")
+func writeHeader(sec ibus.IDataSection) (res [][]byte) {
 	if len(sec.Type()) > 0 {
-		buf.WriteString(fmt.Sprintf(`"type":"%s"`, sec.Type()))
+		res = append(res, []byte(fmt.Sprintf(`"type":"%s"`, sec.Type())))
 	}
 	if len(sec.Path()) > 0 {
-		buf.WriteString(`%s"path":[`)
+		buf := bytes.NewBufferString("")
+		buf.WriteString(`"path":[`)
 		for _, p := range sec.Path() {
 			buf.WriteString(fmt.Sprintf(`"%s",`, p))
 		}
-		buf.Truncate(buf.Len()-1)
+		buf.Truncate(buf.Len() - 1)
 		buf.WriteString("]")
+		res = append(res, buf.Bytes())
 	}
+	return
 }
 
 func sectionToJSON(isec ibus.ISection) []byte {
-	buf := bytes.NewBufferString("{")
-	sec:= isec.(ibus.IDataSection)
-	buf.WriteString("{")
-	if len(sec.Type()) > 0 {
-		buf.WriteString(fmt.Sprintf(`"type":"%s"`, sec.Type()))
-	}
-	if len(sec.Path()) > 0 {
-		buf.WriteString(`,"path":[`)
-		for _, p := range sec.Path() {
-			buf.WriteString(fmt.Sprintf(`"%s",`, p))
-		}
-		buf.Truncate(buf.Len()-1)
-		buf.WriteString("]")
-	}
-	switch sec := isec.(type){
+	sections := [][]byte{}
+	buf := bytes.NewBufferString("")
+	switch sec := isec.(type) {
 	case ibus.IArraySection:
-		writeHeader(buf, sec)
+		sections = writeHeader(sec)
 		val, ok := sec.Next()
 		if ok {
-			buf.WriteString(`,"elements":[`)
+			buf.WriteString(`"elements":`)
 			for ok {
 				buf.Write(val)
 				buf.WriteString(",")
 				val, ok = sec.Next()
 			}
-			buf.Truncate(buf.Len()-1)
-			buf.WriteString("]")	
+			buf.Truncate(buf.Len() - 1)
+			sections = append(sections, buf.Bytes())
 		}
-		buf.WriteString("}")
-	case ibus.IObjectSection :
-		writeHeader(buf, sec)
-
+	case ibus.IObjectSection:
+		sections = writeHeader(sec)
+		if len(sec.Value()) > 0 {
+			buf.WriteString(`"elements":`)
+			buf.Write(sec.Value())
+			sections = append(sections, buf.Bytes())
+		}
+	case ibus.IMapSection:
+		sections = writeHeader(sec)
+		name, val, ok := sec.Next()
+		if ok {
+			buf.WriteString(`"elements":{`)
+			for ok {
+				buf.WriteString(fmt.Sprintf(`"%s":`, name))
+				buf.Write(val)
+				buf.WriteString(",")
+				name, val, ok = sec.Next()
+			}
+			buf.Truncate(buf.Len() - 1)
+			buf.WriteString("}")
+			sections = append(sections, buf.Bytes())
+		}
 	}
+	buf = bytes.NewBufferString("")
+	buf.WriteString("{")
+	if len(sections) > 0 {
+		for _, sec := range sections {
+			buf.Write(sec)
+			buf.WriteString(",")
+		}
+		buf.Truncate(buf.Len() - 1)
+	}
+	buf.WriteString("}")
+	return buf.Bytes()
 }
