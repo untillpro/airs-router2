@@ -143,7 +143,7 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 	}
 	buf.WriteString(fmt.Sprintf(`"status":%d`, status))
 	if len(errorDesc) > 0 {
-		replacer := strings.NewReplacer("\n", " ", "\t", " ", "\r", " ")
+		replacer := strings.NewReplacer("\n", "\\n", "\t", "\\t", "\r", "\\r")
 		buf.WriteString(fmt.Sprintf(`,"errorDescription": "%s"`, replacer.Replace(errorDesc)))
 	}
 	if len(dataJSON) > 0 {
@@ -224,7 +224,7 @@ func main() {
 	gochips.Info("nats: " + *natsServers)
 
 	addHandlers()
-
+ 
 	bus.Declare(bus.Service{NATSServers: *natsServers, Queues: queueNumberOfPartitions})
 	Declare(Service{Port: *routerPort, WriteTimeout: *routerWriteTimeout, ReadTimeout: *routerReadTimeout,
 		ConnectionsLimit: *routerConnectionsLimit})
