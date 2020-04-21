@@ -124,14 +124,14 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 
 	sections, status, errorDesc, data := getRespData(ctx, req, queueRequest, resp, timeout)
 	dataJSON := ""
-	if len(data) > 0 && string(data) != "null" {
-		dataJSONBytes, err := json.Marshal(string(data))
-		if err != nil {
-			gochips.Error(err)
-			writeTextResponse(resp, "can't marshal data from response: "+err.Error()+"\n"+string(data), http.StatusBadRequest)
-			return
+	if status != http.StatusOK && len(data) != 0 {
+		errorDesc = string(data)
+		data = []byte{}
+	} else {
+		if len(data) > 0 && string(data) != "null" {
+			dataJSONBytes, _ := json.Marshal(string(data)) // errors are impossible here
+			dataJSON = string(dataJSONBytes)
 		}
-		dataJSON = string(dataJSONBytes)
 	}
 	setContentType(resp, "application/json")
 	resp.WriteHeader(http.StatusOK)
@@ -224,7 +224,7 @@ func main() {
 	gochips.Info("nats: " + *natsServers)
 
 	addHandlers()
- 
+
 	bus.Declare(bus.Service{NATSServers: *natsServers, Queues: queueNumberOfPartitions})
 	Declare(Service{Port: *routerPort, WriteTimeout: *routerWriteTimeout, ReadTimeout: *routerReadTimeout,
 		ConnectionsLimit: *routerConnectionsLimit})

@@ -25,7 +25,7 @@ func TestChunkedRespBasicUsage(t *testing.T) {
 	ibusReq := &ibus.Request{}
 	resp := httptest.NewRecorder()
 	ibus.SendRequest = func(ctx context.Context, request *ibus.Request, timeout time.Duration) (res *ibus.Response, chunks <-chan []byte, chunksError *error, err error) {
-		res = &ibus.Response{StatusCode: http.StatusOK}
+		res = &ibus.Response{StatusCode: http.StatusOK, Data: []byte("payload")}
 		var chunksErrorRes *error
 		ch := make(chan []byte)
 		rsi := ibus.NewResultSender(ch)
@@ -75,7 +75,8 @@ func TestChunkedRespBasicUsage(t *testing.T) {
 				]
 		 	}
 		],
-		"status": 200
+		"status": 200,
+		"data": "payload"
 	}`
 
 	expected := map[string]interface{}{}
@@ -138,6 +139,30 @@ func TestChunkedRespSendResponseError(t *testing.T) {
 	ibus.SendRequest = func(ctx context.Context, request *ibus.Request, timeout time.Duration) (res *ibus.Response, chunks <-chan []byte, chunksError *error, err error) {
 		res = &ibus.Response{StatusCode: http.StatusOK}
 		err = errors.New("test error")
+		return
+	}
+	chunkedResp(ctx, req, ibusReq, resp, 100000*time.Millisecond)
+
+	expectedJSON := `
+	{
+		"status": 500,
+		"errorDescription": "test error"
+	 }`
+
+	expected := map[string]interface{}{}
+	require.Nil(t, json.Unmarshal([]byte(expectedJSON), &expected))
+	actual := map[string]interface{}{}
+	require.Nil(t, json.Unmarshal(resp.Body.Bytes(), &actual))
+	require.Equal(t, expected, actual)
+}
+
+func TestChunkedRespErrorInDataField(t *testing.T) {
+	ctx := context.Background()
+	req := &http.Request{Body: http.NoBody}
+	ibusReq := &ibus.Request{}
+	resp := httptest.NewRecorder()
+	ibus.SendRequest = func(ctx context.Context, request *ibus.Request, timeout time.Duration) (res *ibus.Response, chunks <-chan []byte, chunksError *error, err error) {
+		res = &ibus.Response{StatusCode: http.StatusInternalServerError, Data: []byte("test error")}
 		return
 	}
 	chunkedResp(ctx, req, ibusReq, resp, 100000*time.Millisecond)
