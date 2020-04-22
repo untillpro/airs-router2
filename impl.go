@@ -67,7 +67,7 @@ func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 	}
 }
 
-func getRespData(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) (sections []byte, status int, errorDesc string, data []byte) {
+func getSectionedData(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) (sectionsBytes []byte, status int, errorDesc string, data []byte) {
 	defer func() {
 		if r := recover(); r != nil {
 			errorDesc = fmt.Sprintf("%s\n%s", r, string(debug.Stack()))
@@ -122,7 +122,7 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		queueRequest.Body = body
 	}
 
-	sections, status, errorDesc, data := getRespData(ctx, req, queueRequest, resp, timeout)
+	sectionsBytes, status, errorDesc, data := getSectionedData(ctx, req, queueRequest, resp, timeout)
 	dataJSON := ""
 	if status != http.StatusOK && len(data) != 0 {
 		errorDesc = string(data)
@@ -137,8 +137,8 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 	resp.WriteHeader(http.StatusOK)
 
 	buf := bytes.NewBufferString("{")
-	if len(sections) > 0 {
-		buf.Write(sections)
+	if len(sectionsBytes) > 0 {
+		buf.Write(sectionsBytes)
 		buf.WriteString(",")
 	}
 	buf.WriteString(fmt.Sprintf(`"status":%d`, status))
