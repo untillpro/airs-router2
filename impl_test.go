@@ -19,7 +19,7 @@ var (
 	elem3 = map[string]interface{}{"total": 1}
 )
 
-func TestChunkedRespBasicUsage(t *testing.T) {
+func TestSectionedRespBasicUsage(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -86,7 +86,7 @@ func TestChunkedRespBasicUsage(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestChunkedRespSendResponseChunkedError(t *testing.T) {
+func TestSectionedRespSendResponseChunkedError(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -131,7 +131,7 @@ func TestChunkedRespSendResponseChunkedError(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestChunkedRespSendResponseError(t *testing.T) {
+func TestSectionedRespSendResponseError(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -156,7 +156,7 @@ func TestChunkedRespSendResponseError(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestChunkedRespErrorInDataField(t *testing.T) {
+func TestSectionedRespErrorInDataField(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -180,7 +180,7 @@ func TestChunkedRespErrorInDataField(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestChunkedRespSendResponseNilResponse(t *testing.T) {
+func TestSectionedRespSendResponseNilResponse(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -203,7 +203,7 @@ func TestChunkedRespSendResponseNilResponse(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestChunkedRespNoSections(t *testing.T) {
+func TestSectionedRespNoSections(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -226,7 +226,7 @@ func TestChunkedRespNoSections(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestChunkedRespPanic(t *testing.T) {
+func TestSectionedRespPanic(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
