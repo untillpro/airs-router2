@@ -41,6 +41,9 @@ github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5
 github.com/untillpro/airs-ibus v0.0.0-20200210150646-efe9a3524a2d/go.mod h1:zqh638zl3oFrLFQB+J1XwAUe9K3gELMbFcX6AboeWq4=
 github.com/untillpro/airs-ibus v0.0.0-20200414104051-7a52bdda4652 h1:n4Hy0U6y4IRW3WuS60RU8VAd7vE2WjVUzGU/bVPrWj4=
 github.com/untillpro/airs-ibus v0.0.0-20200414104051-7a52bdda4652/go.mod h1:zqh638zl3oFrLFQB+J1XwAUe9K3gELMbFcX6AboeWq4=
+github.com/untillpro/airs-ibus v0.0.0-20200420121550-c9ea165fad4c/go.mod h1:wdh6wfXojbDdrStzKToUiB0NcE9NJToQGt+okeMYyq8=
+github.com/untillpro/airs-ibus v0.0.0-20200422081913-c37834024321 h1:Wff9gMj0qr++NntVsDvg0O35lOoA9Fh4APoCL/uLySU=
+github.com/untillpro/airs-ibus v0.0.0-20200422081913-c37834024321/go.mod h1:wdh6wfXojbDdrStzKToUiB0NcE9NJToQGt+okeMYyq8=
 github.com/untillpro/airs-ibusnats v0.0.0-20200325132555-c4577a1d8f71 h1:Ox74YiS3J8sCrxTvOaHgv/4Py5FEBw61HNHiLQYAm+s=
 github.com/untillpro/airs-ibusnats v0.0.0-20200325132555-c4577a1d8f71/go.mod h1:j1dk83biGMGTRr6Op92M6zWCki82+ikATfgy06U9hOY=
 github.com/untillpro/airs-icore v0.0.0-20200310140004-41cf371618ae/go.mod h1:b1NoCld2PEfIR+udtV0/nvjoHXWf2CCi6sfoBeOxSik=
@@ -74,6 +77,8 @@ golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59/go.mod h1:LzIPMQfyMNhhGPh
 golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3/go.mod h1:t9HGtf8HONx5eT2rtn7q6eTqICYqUVnKs3thJo3Qplg=
 golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e h1:3G+cUijn7XD+S4eJFddp53Pv7+slrESplyjG25HgL+k=
 golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e/go.mod h1:qpuaurCH72eLCgpAm/N6yyVIVM9cpaDIP3A8BGJEC5A=
+golang.org/x/net v0.0.0-20200421231249-e086a090c8fd h1:QPwSajcTUrFriMF1nJ3XzgoqakqQEsnZf9LdXdi2nkI=
+golang.org/x/net v0.0.0-20200421231249-e086a090c8fd/go.mod h1:qpuaurCH72eLCgpAm/N6yyVIVM9cpaDIP3A8BGJEC5A=
 golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20190412213103-97732733099d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20190726091711-fc99dfbffb4e/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
