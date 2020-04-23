@@ -18,7 +18,6 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -63,55 +62,48 @@ func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
 		}
 		queueRequest.Resource = vars[resourceNameVar]
 		queueRequest.PartitionNumber = int(queueRequest.WSID % int64(numberOfPartitions))
-		chunkedResp(ctx, req, queueRequest, resp, ibus.DefaultTimeout)
+		processResponse(ctx, req, queueRequest, resp, ibus.DefaultTimeout)
 	}
 }
 
-func getSectionedData(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) (sectionsBytes []byte, status int, errorDesc string, data []byte) {
-	defer func() {
-		if r := recover(); r != nil {
-			errorDesc = fmt.Sprintf("%s\n%s", r, string(debug.Stack()))
-			gochips.Error(errorDesc)
-			status = http.StatusInternalServerError
+func writeSectionedResponse(w http.ResponseWriter, chunks <-chan []byte, chunksErr *error) {
+	setContentType(w, contentJSON)
+	w.WriteHeader(http.StatusOK)
+	if !writeResponse(w, "{") {
+		return
+	}
+	sections := ibus.BytesToSections(chunks, chunksErr)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	sectionsOpened := false
+
+	closer := ""
+	for iSection := range sections {
+		if !sectionsOpened {
+			if !writeResponse(w, `"sections":[`) {
+				return
+			}
+			closer = "],"
+			sectionsOpened = true
+		} else {
+			if !writeResponse(w, ",") {
+				return
+			}
+		}
+		if !writeSection(w, iSection) {
 			return
 		}
-	}()
-	respFromInvoke, outChunks, outChunksErr, err := ibus.SendRequest(ctx, queueRequest, timeout)
-	setContentType(resp, contentJSON)
-	if err != nil {
-		return nil, http.StatusInternalServerError, err.Error(), nil
-	}
-	if respFromInvoke == nil {
-		return nil, http.StatusInternalServerError, "nil response from bus", nil
 	}
 
-	buf := bytes.NewBufferString("")
-	if len(errorDesc) == 0 && outChunks != nil {
-		sections := ibus.BytesToSections(outChunks, outChunksErr)
-		resp.Header().Set("X-Content-Type-Options", "nosniff")
-		sectionsOpened := false
-		for iSection := range sections {
-			if !sectionsOpened {
-				buf.WriteString(`"sections":[`)
-				sectionsOpened = true
-			}
-			buf.Write(sectionToJSON(iSection))
-			buf.WriteString(",")
+	if chunksErr != nil && *chunksErr != nil {
+		writeResponse(w, fmt.Sprintf(`%s"status":%d,"errorDescription":"%s"}`, closer, http.StatusInternalServerError, *chunksErr))
+		for range chunks {
 		}
-		if sectionsOpened {
-			buf.Truncate(buf.Len() - 1)
-			buf.WriteString("]")
-		}
+	} else {
+		writeResponse(w, fmt.Sprintf(`%s"status":%d}`, closer, http.StatusOK))
 	}
-	if outChunksErr != nil && *outChunksErr != nil {
-		errorDesc = (*outChunksErr).Error()
-		gochips.Error("error in chunks: " + errorDesc)
-		return buf.Bytes(), http.StatusInternalServerError, errorDesc, nil
-	}
-	return buf.Bytes(), respFromInvoke.StatusCode, "", respFromInvoke.Data
 }
 
-func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) {
+func processResponse(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) {
 	if req.Body != nil && req.Body != http.NoBody {
 		body, err := ioutil.ReadAll(req.Body)
 		if err != nil {
@@ -122,37 +114,43 @@ func chunkedResp(ctx context.Context, req *http.Request, queueRequest *ibus.Requ
 		queueRequest.Body = body
 	}
 
-	sectionsBytes, status, errorDesc, data := getSectionedData(ctx, req, queueRequest, resp, timeout)
-	dataJSON := ""
-	if status != http.StatusOK && len(data) != 0 {
-		errorDesc = string(data)
-		data = []byte{}
-	} else {
-		if len(data) > 0 && string(data) != "null" {
-			dataJSONBytes, _ := json.Marshal(string(data)) // errors are impossible here
-			dataJSON = string(dataJSONBytes)
-		}
-	}
-	setContentType(resp, "application/json")
-	resp.WriteHeader(http.StatusOK)
+	var respFromInvoke *ibus.Response
+	var outChunks <-chan []byte
+	var outChunksErr *error
+	var err error
+	sendRequestFailed := false
 
-	buf := bytes.NewBufferString("{")
-	if len(sectionsBytes) > 0 {
-		buf.Write(sectionsBytes)
-		buf.WriteString(",")
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				sendRequestFailed = true
+				errorDesc := fmt.Sprintf("SendRequest() failed: %s\n%s", r, string(debug.Stack()))
+				gochips.Error(errorDesc)
+				writeTextResponse(resp, errorDesc, http.StatusInternalServerError)
+			}
+		}()
+		respFromInvoke, outChunks, outChunksErr, err = ibus.SendRequest(ctx, queueRequest, timeout)
+	}()
+	if sendRequestFailed {
+		return
 	}
-	buf.WriteString(fmt.Sprintf(`"status":%d`, status))
-	if len(errorDesc) > 0 {
-		replacer := strings.NewReplacer("\n", "\\n", "\t", "\\t", "\r", "\\r")
-		buf.WriteString(fmt.Sprintf(`,"errorDescription": "%s"`, replacer.Replace(errorDesc)))
+	if err != nil {
+		writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	if len(dataJSON) > 0 {
-		buf.WriteString(fmt.Sprintf(`,"data":%s`, dataJSON))
+	if respFromInvoke == nil {
+		writeTextResponse(resp, "nil response from bus", http.StatusInternalServerError)
+		return
 	}
-	buf.WriteString("}")
-	if _, err := resp.Write(buf.Bytes()); err != nil {
-		gochips.Error("can't write response part", err)
+
+	if outChunks == nil {
+		setContentType(resp, respFromInvoke.ContentType)
+		resp.WriteHeader(respFromInvoke.StatusCode)
+		writeResponse(resp, string(respFromInvoke.Data))
+		return
 	}
+
+	writeSectionedResponse(resp, outChunks, outChunksErr)
 }
 
 // QueueNamesHandler returns registered queue names
@@ -252,85 +250,105 @@ func setupResponse(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
 }
 
-func writeTextResponse(w http.ResponseWriter, msg string, code int) {
+func writeTextResponse(w http.ResponseWriter, msg string, code int) bool {
 	w.WriteHeader(code)
 	w.Header().Set("Content-Type", "text/plain")
-	_, err := w.Write([]byte(msg))
-	if err != nil {
+	return writeResponse(w, msg)
+}
+
+func writeResponse(w http.ResponseWriter, data string) bool {
+	if _, err := w.Write([]byte(data)); err != nil {
 		gochips.Error(err)
+		return false
 	}
+	return true
 }
 
 func setContentType(resp http.ResponseWriter, cType string) {
 	resp.Header().Set(contentType, cType)
 }
 
-func writeHeader(sec ibus.IDataSection) (res [][]byte) {
-	if len(sec.Type()) > 0 {
-		res = append(res, []byte(fmt.Sprintf(`"type":"%s"`, sec.Type())))
+func writeSectionHeader(w http.ResponseWriter, sec ibus.IDataSection) bool {
+	if !writeResponse(w, fmt.Sprintf(`{"type":"%s"`, sec.Type())) {
+		return false
 	}
 	if len(sec.Path()) > 0 {
 		buf := bytes.NewBufferString("")
-		buf.WriteString(`"path":[`)
+		buf.WriteString(`,"path":[`)
 		for _, p := range sec.Path() {
 			buf.WriteString(fmt.Sprintf(`"%s",`, p))
 		}
 		buf.Truncate(buf.Len() - 1)
 		buf.WriteString("]")
-		res = append(res, buf.Bytes())
+		if !writeResponse(w, string(buf.Bytes())) {
+			return false
+		}
 	}
-	return
+	return true
 }
 
-func sectionToJSON(isec ibus.ISection) []byte {
-	sections := [][]byte{}
-	buf := bytes.NewBufferString("")
+func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 	switch sec := isec.(type) {
 	case ibus.IArraySection:
-		sections = writeHeader(sec)
-		val, ok := sec.Next()
-		if ok {
-			buf.WriteString(`"elements":`)
-			for ok {
-				buf.Write(val)
-				buf.WriteString(",")
-				val, ok = sec.Next()
+		if !writeSectionHeader(w, sec) {
+			return false
+		}
+		isFirst := true
+		for val, ok := sec.Next(); ok; val, ok = sec.Next() {
+			if isFirst {
+				if !writeResponse(w, fmt.Sprintf(`,"elements":[%s`, string(val))) {
+					return false
+				}
+				isFirst = false
+			} else {
+				if !writeResponse(w, fmt.Sprintf(`,%s`, string(val))) {
+					return false
+				}
 			}
-			buf.Truncate(buf.Len() - 1)
-			sections = append(sections, buf.Bytes())
+		}
+		if !isFirst {
+			if !writeResponse(w, "]") {
+				return false
+			}
+		}
+		if !writeResponse(w, "}") {
+			return false
 		}
 	case ibus.IObjectSection:
-		sections = writeHeader(sec)
+		if !writeSectionHeader(w, sec) {
+			return false
+		}
 		if len(sec.Value()) > 0 {
-			buf.WriteString(`"elements":`)
-			buf.Write(sec.Value())
-			sections = append(sections, buf.Bytes())
+			if !writeResponse(w, fmt.Sprintf(`,"elements":%s`, string(sec.Value()))) {
+				return false
+			}
+		}
+		if !writeResponse(w, "}") {
+			return false
 		}
 	case ibus.IMapSection:
-		sections = writeHeader(sec)
-		name, val, ok := sec.Next()
-		if ok {
-			buf.WriteString(`"elements":{`)
-			for ok {
-				buf.WriteString(fmt.Sprintf(`"%s":`, name))
-				buf.Write(val)
-				buf.WriteString(",")
-				name, val, ok = sec.Next()
+		if !writeSectionHeader(w, sec) {
+			return false
+		}
+		isFirst := true
+		for name, val, ok := sec.Next(); ok; name, val, ok = sec.Next() {
+			if isFirst {
+				if !writeResponse(w, fmt.Sprintf(`,"elements":{"%s":%s`, name, string(val))) {
+					return false
+				}
+				isFirst = false
+			} else {
+				if !writeResponse(w, fmt.Sprintf(`,"%s":%s`, name, string(val))) {
+					return false
+				}
 			}
-			buf.Truncate(buf.Len() - 1)
-			buf.WriteString("}")
-			sections = append(sections, buf.Bytes())
+		}
+		if !isFirst {
+			writeResponse(w, "}")
+		}
+		if !writeResponse(w, "}") {
+			return false
 		}
 	}
-	buf = bytes.NewBufferString("")
-	buf.WriteString("{")
-	if len(sections) > 0 {
-		for _, sec := range sections {
-			buf.Write(sec)
-			buf.WriteString(",")
-		}
-		buf.Truncate(buf.Len() - 1)
-	}
-	buf.WriteString("}")
-	return buf.Bytes()
+	return true
 }
