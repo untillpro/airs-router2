@@ -16,8 +16,8 @@ import (
 
 var (
 	elem1  = map[string]interface{}{"fld1": "fld1Val"}
-	elem11  = map[string]interface{}{"fld2": "fld2Val"}
-	elem21 = "e1"
+	elem11 = map[string]interface{}{"fld2": "fld2Val"}
+	elem21 = `e1 "esc"`
 	elem22 = "e2"
 	elem3  = map[string]interface{}{"total": 1}
 )
@@ -33,11 +33,11 @@ func TestSectionedRespBasicUsage(t *testing.T) {
 		ch := make(chan []byte)
 		rsi := ibus.NewResultSender(ch)
 		go func() {
-			rsi.ObjectSection("obj", []string{"meta"}, elem3)
-			rsi.StartMapSection("secMap", []string{"2"})
+			rsi.ObjectSection(`obj "esc"`, []string{`meta "esc"`}, elem3)
+			rsi.StartMapSection(`secMap "esc"`, []string{`2 "esc"`})
 			rsi.SendElement("id1", elem1)
 			rsi.SendElement("id2", elem11)
-			rsi.StartArraySection("secArr", []string{"3"})
+			rsi.StartArraySection(`secArr "esc"`, []string{`3 "esc"`})
 			rsi.SendElement("", elem21)
 			rsi.SendElement("", elem22)
 			close(ch)
@@ -54,14 +54,14 @@ func TestSectionedRespBasicUsage(t *testing.T) {
 				 "total": 1
 			  },
 			  "path": [
-				 "meta"
+				 "meta \"esc\""
 			  ],
-			  "type": "obj"
+			  "type": "obj \"esc\""
 		   },
 			{
-				"type": "secMap",
+				"type": "secMap \"esc\"",
 				"path": [
-					"2"
+					"2 \"esc\""
 				],
 				"elements": {
 					"id1": {
@@ -73,12 +73,12 @@ func TestSectionedRespBasicUsage(t *testing.T) {
 				}
 			},
 			{
-				"type": "secArr",
+				"type": "secArr \"esc\"",
 				"path": [
-					"3"
+					"3 \"esc\""
 				],
 				"elements": [
-					"e1",
+					"e1 \"esc\"",
 					"e2"
 				]
 		 	}
@@ -89,7 +89,7 @@ func TestSectionedRespBasicUsage(t *testing.T) {
 	expected := map[string]interface{}{}
 	require.Nil(t, json.Unmarshal([]byte(expectedJSON), &expected))
 	actual := map[string]interface{}{}
-	require.Nil(t, json.Unmarshal(resp.Body.Bytes(), &actual))
+	require.Nil(t, json.Unmarshal(resp.Body.Bytes(), &actual), string(resp.Body.Bytes()))
 	require.Equal(t, expected, actual)
 	require.Equal(t, http.StatusOK, resp.Code)
 }
@@ -222,11 +222,11 @@ func TestSectionedRespPanic(t *testing.T) {
 	processResponse(ctx, req, ibusReq, resp, 1000*time.Millisecond)
 
 	fmt.Println(string(resp.Body.Bytes()))
-	require.Contains(t, string(resp.Body.Bytes()), "test panic" )
+	require.Contains(t, string(resp.Body.Bytes()), "test panic")
 	require.Equal(t, http.StatusInternalServerError, resp.Code)
 }
 
-func TestMapSectionFailures (t*testing.T) {
+func TestMapSectionFailures(t *testing.T) {
 	ctx := context.Background()
 	req := &http.Request{Body: http.NoBody}
 	ibusReq := &ibus.Request{}
@@ -269,6 +269,5 @@ func TestMapSectionFailures (t*testing.T) {
 	require.Nil(t, json.Unmarshal(resp.Body.Bytes(), &actual))
 	require.Equal(t, expected, actual)
 	require.Equal(t, http.StatusOK, resp.Code)
-
 
 }

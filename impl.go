@@ -73,6 +73,11 @@ func writeSectionedResponse(w http.ResponseWriter, chunks <-chan []byte, chunksE
 		return
 	}
 	sections := ibus.BytesToSections(chunks, chunksErr)
+	defer func() {
+		// TODO: test it.
+		for range sections {
+		}
+	}()
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	sectionsOpened := false
 
@@ -130,6 +135,13 @@ func processResponse(ctx context.Context, req *http.Request, queueRequest *ibus.
 			}
 		}()
 		respFromInvoke, outChunks, outChunksErr, err = ibus.SendRequest(ctx, queueRequest, timeout)
+	}()
+	defer func() {
+		// TODO: test it.
+		if outChunks != nil {
+			for range outChunks {
+			}
+		}
 	}()
 	if sendRequestFailed {
 		return
@@ -269,14 +281,14 @@ func setContentType(resp http.ResponseWriter, cType string) {
 }
 
 func writeSectionHeader(w http.ResponseWriter, sec ibus.IDataSection) bool {
-	if !writeResponse(w, fmt.Sprintf(`{"type":"%s"`, sec.Type())) {
+	if !writeResponse(w, fmt.Sprintf(`{"type":%s`, escape(sec.Type()))) {
 		return false
 	}
 	if len(sec.Path()) > 0 {
 		buf := bytes.NewBufferString("")
 		buf.WriteString(`,"path":[`)
 		for _, p := range sec.Path() {
-			buf.WriteString(fmt.Sprintf(`"%s",`, p))
+			buf.WriteString(fmt.Sprintf(`%s,`, escape(p)))
 		}
 		buf.Truncate(buf.Len() - 1)
 		buf.WriteString("]")
@@ -285,6 +297,11 @@ func writeSectionHeader(w http.ResponseWriter, sec ibus.IDataSection) bool {
 		}
 	}
 	return true
+}
+
+func escape(in string) string {
+	escapedBytes, _ := json.Marshal(in) // assuming errors are impossible
+	return string(escapedBytes)
 }
 
 func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
@@ -332,13 +349,14 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 		}
 		isFirst := true
 		for name, val, ok := sec.Next(); ok; name, val, ok = sec.Next() {
+			name = escape(name)
 			if isFirst {
-				if !writeResponse(w, fmt.Sprintf(`,"elements":{"%s":%s`, name, string(val))) {
+				if !writeResponse(w, fmt.Sprintf(`,"elements":{%s:%s`, name, string(val))) {
 					return false
 				}
 				isFirst = false
 			} else {
-				if !writeResponse(w, fmt.Sprintf(`,"%s":%s`, name, string(val))) {
+				if !writeResponse(w, fmt.Sprintf(`,%s:%s`, name, string(val))) {
 					return false
 				}
 			}
