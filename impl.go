@@ -304,6 +304,8 @@ func escape(in string) string {
 	return string(escapedBytes)
 }
 
+// writes section to the writter
+// why not to have SectionToJSON()-like? To avoid of sections accumulation (have to read all elements in a section)
 func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 	switch sec := isec.(type) {
 	case ibus.IArraySection:
@@ -335,8 +337,9 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 		if !writeSectionHeader(w, sec) {
 			return false
 		}
-		if len(sec.Value()) > 0 {
-			if !writeResponse(w, fmt.Sprintf(`,"elements":%s`, string(sec.Value()))) {
+		val := sec.Value()
+		if len(val) > 0 {
+			if !writeResponse(w, fmt.Sprintf(`,"elements":%s`, string(val))) {
 				return false
 			}
 		}

@@ -19,7 +19,7 @@ var (
 	elem11 = map[string]interface{}{"fld2": "fld2Val"}
 	elem21 = `e1 "esc"`
 	elem22 = "e2"
-	elem3  = map[string]interface{}{"total": 1}
+	elemTotal  = map[string]interface{}{"total": 1}
 )
 
 func TestSectionedRespBasicUsage(t *testing.T) {
@@ -33,7 +33,7 @@ func TestSectionedRespBasicUsage(t *testing.T) {
 		ch := make(chan []byte)
 		rsi := ibus.NewResultSender(ch)
 		go func() {
-			rsi.ObjectSection(`obj "esc"`, []string{`meta "esc"`}, elem3)
+			rsi.ObjectSection(`obj "esc"`, []string{`meta "esc"`}, elemTotal)
 			rsi.StartMapSection(`secMap "esc"`, []string{`2 "esc"`})
 			rsi.SendElement("id1", elem1)
 			rsi.SendElement("id2", elem11)
@@ -270,4 +270,29 @@ func TestMapSectionFailures(t *testing.T) {
 	require.Equal(t, expected, actual)
 	require.Equal(t, http.StatusOK, resp.Code)
 
+}
+
+func TestObjectSectionNilSecondValueCall(t *testing.T) {
+	ch := make(chan []byte)
+	ibus.SendRequest = func(ctx context.Context, request *ibus.Request, timeout time.Duration) (res *ibus.Response, chunks <-chan []byte, chunksError *error, err error) {
+		res = &ibus.Response{StatusCode: http.StatusOK}
+		rsi := ibus.NewResultSender(ch)
+		var chunksErrorRes error
+		go func() {
+			rsi.ObjectSection("obj", []string{"meta"}, map[string]interface{}{
+				"total": 1,
+			})
+			chunksErrorRes = errors.New("test error")
+			close(ch)
+		}()
+		return res, ch, &chunksErrorRes, nil
+	}
+	ctx := context.Background()
+	ibusReq := &ibus.Request{}
+	_, outChunks, outChunksErr, _ := ibus.SendRequest(ctx, ibusReq, 1000*time.Millisecond)
+	sections := ibus.BytesToSections(outChunks, outChunksErr)
+	isec := <-sections
+	objSec := isec.(ibus.IObjectSection)
+	require.NotNil(t, objSec.Value())
+	require.Nil(t, objSec.Value())
 }
