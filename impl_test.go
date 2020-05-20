@@ -14,6 +14,7 @@ import (
 	ibus "github.com/untillpro/airs-ibus"
 )
 
+
 var (
 	elem1  = map[string]interface{}{"fld1": "fld1Val"}
 	elem11 = map[string]interface{}{"fld2": "fld2Val"}
