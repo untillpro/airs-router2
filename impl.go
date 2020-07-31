@@ -156,6 +156,7 @@ func processResponse(ctx context.Context, req *http.Request, queueRequest *ibus.
 	gochips.Info("3")
 	if err != nil {
 		gochips.Info("31")
+		gochips.Error(err.Error())
 		writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
 		gochips.Info("32")
 		return
