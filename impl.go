@@ -136,50 +136,33 @@ func processResponse(ctx context.Context, req *http.Request, queueRequest *ibus.
 		}()
 		respFromInvoke, outChunks, outChunksErr, err = ibus.SendRequest(ctx, queueRequest, timeout)
 	}()
-	gochips.Info("1")
 	defer func() {
 		// TODO: test it.
-		gochips.Info("11")
 		if outChunks != nil {
-			gochips.Info("12")
 			for range outChunks {
-				gochips.Info("13")
 			}
-			gochips.Info("14")
 		}
 	}()
-	gochips.Info("2")
 	if sendRequestFailed {
-		gochips.Info("21")
 		return
 	}
-	gochips.Info("3")
 	if err != nil {
-		gochips.Info("31")
-		gochips.Error(err.Error())
 		writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
-		gochips.Info("32")
 		return
 	}
-	gochips.Info("4")
 	if respFromInvoke == nil {
-		gochips.Info("41")
 		writeTextResponse(resp, "nil response from bus", http.StatusInternalServerError)
-		gochips.Info("42")
 		return
 	}
-	gochips.Info("5")
+
 	if outChunks == nil {
 		setContentType(resp, respFromInvoke.ContentType)
 		resp.WriteHeader(respFromInvoke.StatusCode)
-		gochips.Info("51")
 		writeResponse(resp, string(respFromInvoke.Data))
-		gochips.Info("52")
 		return
 	}
-	gochips.Info("6")
+
 	writeSectionedResponse(resp, outChunks, outChunksErr)
-	gochips.Info("7")
 }
 
 // QueueNamesHandler returns registered queue names
