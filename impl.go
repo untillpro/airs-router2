@@ -15,6 +15,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -37,8 +38,8 @@ const (
 	defaultRouterPort             = 8822
 	defaultRouterConnectionsLimit = 10000
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
-	defaultRouterReadTimeout  = 15
-	defaultRouterWriteTimeout = 15
+	defaultRouterReadTimeout  = 1500
+	defaultRouterWriteTimeout = 1500
 	//Content-Type
 	contentJSON = "application/json"
 )
@@ -85,16 +86,19 @@ func writeSectionedResponse(w http.ResponseWriter, chunks <-chan []byte, chunksE
 	for iSection := range sections {
 		if !sectionsOpened {
 			if !writeResponse(w, `"sections":[`) {
+				log.Println("writeSectionedResponse 1")
 				return
 			}
 			closer = "],"
 			sectionsOpened = true
 		} else {
 			if !writeResponse(w, ",") {
+				log.Println("writeSectionedResponse 2")
 				return
 			}
 		}
 		if !writeSection(w, iSection) {
+			log.Println("writeSectionedResponse 3")
 			return
 		}
 	}
