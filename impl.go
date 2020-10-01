@@ -15,7 +15,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -86,19 +85,16 @@ func writeSectionedResponse(w http.ResponseWriter, chunks <-chan []byte, chunksE
 	for iSection := range sections {
 		if !sectionsOpened {
 			if !writeResponse(w, `"sections":[`) {
-				log.Println("writeSectionedResponse 1")
 				return
 			}
 			closer = "],"
 			sectionsOpened = true
 		} else {
 			if !writeResponse(w, ",") {
-				log.Println("writeSectionedResponse 2")
 				return
 			}
 		}
 		if !writeSection(w, iSection) {
-			log.Println("writeSectionedResponse 3")
 			return
 		}
 	}
