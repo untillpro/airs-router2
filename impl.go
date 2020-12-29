@@ -186,14 +186,14 @@ func setContentType(resp http.ResponseWriter, cType string) {
 func writeSectionHeader(w http.ResponseWriter, sec ibus.IDataSection) bool {
 	buf := bytebufferpool.Get()
 	defer bytebufferpool.Put(buf)
-	buf.WriteString(fmt.Sprintf(`{"type":"%s"`, sec.Type()))
+	buf.WriteString(fmt.Sprintf(`{"type":%q`, sec.Type()))
 	if len(sec.Path()) > 0 {
 		buf.WriteString(`,"path":[`)
 		for i, p := range sec.Path() {
 			if i > 0 {
 				buf.WriteString(",")
 			}
-			buf.WriteString(fmt.Sprintf(`"%s"`, p))
+			buf.WriteString(fmt.Sprintf(`%q`, p))
 		}
 		buf.WriteString("]")
 	}
@@ -250,12 +250,12 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 		isFirst := true
 		for name, val, ok := sec.Next(); ok; name, val, ok = sec.Next() { // ctx.Done() is tracked by Next()
 			if isFirst {
-				if !writeResponse(w, fmt.Sprintf(`,"elements":{"%s":%s`, name, string(val))) {
+				if !writeResponse(w, fmt.Sprintf(`,"elements":{%q:%s`, name, string(val))) {
 					return false
 				}
 				isFirst = false
 			} else {
-				if !writeResponse(w, fmt.Sprintf(`,"%s":%s`, name, string(val))) {
+				if !writeResponse(w, fmt.Sprintf(`,%q:%s`, name, string(val))) {
 					return false
 				}
 			}

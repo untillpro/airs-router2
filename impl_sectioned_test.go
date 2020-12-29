@@ -25,9 +25,9 @@ import (
 
 var (
 	elem1       = map[string]interface{}{"fld1": "fld1Val"}
-	elem11      = map[string]interface{}{"fld2": "fld2Val"}
+	elem11      = map[string]interface{}{"fld2": `哇"呀呀`}
 	elem21      = "e1"
-	elem22      = "e2"
+	elem22      = `哇"呀呀`
 	elem3       = map[string]interface{}{"total": 1}
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -53,9 +53,9 @@ func TestSectionedBasic(t *testing.T) {
 
 		rs := ibus.SendParallelResponse2(ctx, sender)
 		rs.ObjectSection("obj", []string{"meta"}, elem3)
-		rs.StartMapSection("secMap", []string{"2", "21"})
+		rs.StartMapSection(`哇"呀呀Map`, []string{`哇"呀呀`, "21"})
 		rs.SendElement("id1", elem1)
-		rs.SendElement("id2", elem11)
+		rs.SendElement(`哇"呀呀2`, elem11)
 		rs.StartArraySection("secArr", []string{"3"})
 		rs.SendElement("", elem21)
 		rs.SendElement("", elem22)
@@ -84,17 +84,17 @@ func TestSectionedBasic(t *testing.T) {
 				  "type": "obj"
 			   },
 				{
-					"type": "secMap",
+					"type": "哇\"呀呀Map",
 					"path": [
-						"2",
+						"哇\"呀呀",
 						"21"
 					],
 					"elements": {
 						"id1": {
 							"fld1": "fld1Val"
 						},
-						"id2": {
-							"fld2": "fld2Val"
+						"哇\"呀呀2": {
+							"fld2": "哇\"呀呀"
 						}
 					}
 				},
@@ -105,7 +105,7 @@ func TestSectionedBasic(t *testing.T) {
 					],
 					"elements": [
 						"e1",
-						"e2"
+						"哇\"呀呀"
 					]
 			 	}
 			],
