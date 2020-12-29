@@ -5,17 +5,19 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-package main
+package router
 
 import (
 	"context"
-	"github.com/gorilla/mux"
-	"github.com/untillpro/gochips"
-	"golang.org/x/net/netutil"
+	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/gorilla/mux"
+	"golang.org/x/net/netutil"
 )
 
 // Service s.e.
@@ -32,6 +34,7 @@ const routerKey = routerKeyType("router")
 
 // Start s.e.
 func (s *Service) Start(ctx context.Context) (context.Context, error) {
+
 	s.router = mux.NewRouter()
 
 	port := strconv.Itoa(s.Port)
@@ -47,18 +50,21 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 	}
 
 	s.server = &http.Server{
+		BaseContext: func(l net.Listener) context.Context {
+			return ctx // need to track both client disconnect and app finalize
+		},
 		Addr:         ":" + port,
 		Handler:      s.router,
 		ReadTimeout:  time.Duration(s.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(s.WriteTimeout) * time.Second,
 	}
 
-	s.RegisterHandlers(ctx)
+	s.registerHandlers(ctx)
 
-	gochips.Info("Router started")
+	log.Println("Router started")
 	go func() {
 		if err := s.server.Serve(s.listener); err != nil {
-			gochips.Info(err)
+			log.Println(err)
 		}
 	}()
 	return context.WithValue(ctx, routerKey, s), nil
@@ -66,9 +72,18 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 
 // Stop s.e.
 func (s *Service) Stop(ctx context.Context) {
-	err := s.server.Shutdown(ctx)
-	if err != nil {
+	if err := s.server.Shutdown(ctx); err != nil {
 		s.listener.Close()
 		s.server.Close()
 	}
+}
+
+func (s *Service) registerHandlers(ctx context.Context) {
+	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS")
+	s.router.HandleFunc("/api", corsHandler(queueNamesHandler()))
+	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}", queueAliasVar, wSIDVar), corsHandler(partitionHandler(ctx))).
+		Methods("POST", "OPTIONS")
+	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/]+}", queueAliasVar,
+		wSIDVar, resourceNameVar), corsHandler(partitionHandler(ctx))).
+		Methods("POST", "PATCH", "OPTIONS").Headers()
 }

@@ -1,13 +1,14 @@
 module github.com/untillpro/airs-router
 
-go 1.13
+go 1.15
 
 require (
-	github.com/gorilla/mux v1.7.4
-	github.com/stretchr/testify v1.5.1
-	github.com/untillpro/airs-ibus v0.0.0-20200422081913-c37834024321
-	github.com/untillpro/airs-ibusnats v0.0.0-20200325132555-c4577a1d8f71
-	github.com/untillpro/gochips v1.12.1-0.20191205115612-9cd10d0ac2b3
+	github.com/agiledragon/gomonkey/v2 v2.1.0
+	github.com/gorilla/mux v1.8.0
+	github.com/stretchr/testify v1.6.1
+	github.com/untillpro/airs-ibus v0.0.0-20201228131349-e2152a2bf73e
+	github.com/untillpro/airs-ibusnats v0.0.0-20201229152740-25439ef62ec9
 	github.com/untillpro/godif v0.18.0
-	golang.org/x/net v0.0.0-20200421231249-e086a090c8fd
+	github.com/valyala/bytebufferpool v1.0.0
+	golang.org/x/net v0.0.0-20201224014010-6772e930b67b
 )
