@@ -12,5 +12,3 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b
 )
-
-replace github.com/untillpro/airs-ibusnats => ../airs-ibusnats
