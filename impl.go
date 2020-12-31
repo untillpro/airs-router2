@@ -43,7 +43,6 @@ var (
 	onResponseWriteFailed   func()        = nil                 // used in tests
 )
 
-
 func partitionHandler(ctx context.Context) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
