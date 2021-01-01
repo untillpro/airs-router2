@@ -6,6 +6,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -48,8 +49,8 @@ func declare() {
 		CurrentQueueName: currentQueueName, // not empty in tests only
 		Verbose:          *verbose,
 	}
+	fmt.Println(busSrv)
 	bus.Declare(busSrv)
-
 
 	routerSrv = Service{
 		Port:             *routerPort,
