@@ -6,7 +6,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
@@ -31,17 +30,16 @@ var (
 
 // called directly in tests only
 func declare() {
-	// fs := flag.NewFlagSet("", 1)
-	natsServers = flag.String("ns", "nats://127.0.0.1:4222", "The nats server URLs (separated by comma)")
-	routerPort = flag.Int("p", defaultRouterPort, "Server port")
-	routerWriteTimeout = flag.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
-	routerReadTimeout = flag.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
-	routerConnectionsLimit = flag.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
-	verbose = flag.Bool("v", false, "verbose, log raw NATS traffic")
-	// if err := fs.Parse(os.Args); err != nil {
-	// 	panic(err)
-	// }
-	flag.Parse()
+	fs := flag.NewFlagSet("", 1)
+	natsServers = fs.String("ns", "nats://127.0.0.1:4222", "The nats server URLs (separated by comma)")
+	routerPort = fs.Int("p", defaultRouterPort, "Server port")
+	routerWriteTimeout = fs.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
+	routerReadTimeout = fs.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
+	routerConnectionsLimit = fs.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
+	verbose = fs.Bool("v", false, "verbose, log raw NATS traffic")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		panic(err)
+	}
 
 	queueNumberOfPartitions["airs-bp"] = airsBPPartitionsAmount
 	queueNamesJSON = []byte(`["airs-bp"]`)
@@ -52,8 +50,6 @@ func declare() {
 		CurrentQueueName: currentQueueName, // not empty in tests only
 		Verbose:          *verbose,
 	}
-	fmt.Println(os.Args)
-	fmt.Println(busSrv)
 	bus.Declare(busSrv)
 
 	routerSrv = Service{
