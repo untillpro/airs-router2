@@ -49,6 +49,7 @@ func declare() {
 		CurrentQueueName: currentQueueName, // not empty in tests only
 		Verbose:          *verbose,
 	}
+	fmt.Println(os.Args)
 	fmt.Println(busSrv)
 	bus.Declare(busSrv)
 
