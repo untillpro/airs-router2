@@ -5,6 +5,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -19,7 +20,8 @@ func TestCLI(t *testing.T) {
 	defer func() {
 		os.Args = initialArgs
 	}()
-	os.Args = []string{"-ns", "123", "-p", "8823", "-wt", "42", "-rt", "43", "-cl", "44", "-v"}
+	fmt.Println(os.Args)
+	os.Args = []string{"e:\\Denis\\airs-router2\\debug.test", "-ns", "123", "-p", "8823", "-wt", "42", "-rt", "43", "-cl", "44", "-v"}
 	declare()
 	defer godif.Reset()
 
