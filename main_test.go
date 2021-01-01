@@ -43,12 +43,15 @@ func TestCLI(t *testing.T) {
 
 func TestOSExit(t *testing.T) {
 	osExitCalls := 0
+	initialArgs = os.Args
+	os.Args = []string{"appPath"}
+	defer func() { os.Args = initialArgs }()
+
 	patches := gomonkey.ApplyFunc(os.Exit, func(code int) {
 		require.Equal(t, 1, code)
 		osExitCalls++
 	})
 	defer patches.Reset()
 	main() // should fail to start because no NATS servers available for connection
-	godif.Reset()
 	require.Equal(t, 1, osExitCalls)
 }

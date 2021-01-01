@@ -59,7 +59,7 @@ func TestSectionedBasic(t *testing.T) {
 		rs.StartArraySection("secArr", []string{"3"})
 		rs.SendElement("", elem21)
 		rs.SendElement("", elem22)
-		rs.Close(errors.New("test error"))
+		rs.Close(nil)
 	})
 
 	setUp()
@@ -108,9 +108,7 @@ func TestSectionedBasic(t *testing.T) {
 						"哇\"呀呀"
 					]
 			 	}
-			],
-			"status": 500,
-			"errorDescription": "test error"
+			]
 		}`
 	expectJSONBody(t, expectedJSON, resp.Body)
 	expectOKRespJSON(t, resp)
@@ -132,6 +130,27 @@ func TestSimpleOKSectionedResponse(t *testing.T) {
 	defer resp.Body.Close()
 
 	expectedJSON := `{}`
+
+	expectJSONBody(t, expectedJSON, resp.Body)
+	expectOKRespJSON(t, resp)
+}
+
+func TestSimpleErrorSectionedResponse(t *testing.T) {
+	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
+		rs := ibus.SendParallelResponse2(ctx, sender)
+		rs.Close(errors.New("test error"))
+	})
+
+	setUp()
+	defer tearDown()
+
+	body := []byte("")
+	bodyReader := bytes.NewReader(body)
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", bodyReader)
+	require.Nil(t, err, err)
+	defer resp.Body.Close()
+
+	expectedJSON := `{"status":500,"errorDescription":"test error"}`
 
 	expectJSONBody(t, expectedJSON, resp.Body)
 	expectOKRespJSON(t, resp)
@@ -349,12 +368,15 @@ func tearDown() {
 	os.Args = initialArgs
 	busTimeout = ibus.DefaultTimeout
 	onResponseWriteFailed = nil
+	os.Args = initialArgs
 }
 
 func setUp() {
 	currentQueueName = "airs-bp"
 	airsBPPartitionsAmount = 1
 	ibusnats.DeclareTest(1)
+	initialArgs = os.Args
+	os.Args = []string{"appPath"}
 	declare()
 	godif.Require((&ibus.RequestHandler))
 	godif.Require(&ibus.SendParallelResponse2)

@@ -31,15 +31,13 @@ var (
 // called directly in tests only
 func declare() {
 	fs := flag.NewFlagSet("", 1)
-	natsServers = fs.String("ns", "nats://127.0.0.1:4222", "The nats server URLs (separated by comma)")
+	natsServers = fs.String("ns", defaultNATSServer, "The nats server URLs (separated by comma)")
 	routerPort = fs.Int("p", defaultRouterPort, "Server port")
 	routerWriteTimeout = fs.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
 	routerReadTimeout = fs.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
 	routerConnectionsLimit = fs.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
 	verbose = fs.Bool("v", false, "verbose, log raw NATS traffic")
-	if err := fs.Parse(os.Args[1:]); err != nil {
-		panic(err)
-	}
+	fs.Parse(os.Args[1:]) // os.Exit() on error
 
 	queueNumberOfPartitions["airs-bp"] = airsBPPartitionsAmount
 	queueNamesJSON = []byte(`["airs-bp"]`)
