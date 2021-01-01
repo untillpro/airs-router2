@@ -38,7 +38,9 @@ func declare() {
 	routerReadTimeout = fs.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
 	routerConnectionsLimit = fs.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
 	verbose = fs.Bool("v", false, "verbose, log raw NATS traffic")
-	fs.Parse(os.Args)
+	if err := fs.Parse(os.Args); err != nil {
+		panic(err)
+	}
 
 	queueNumberOfPartitions["airs-bp"] = airsBPPartitionsAmount
 	queueNamesJSON = []byte(`["airs-bp"]`)
