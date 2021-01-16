@@ -5,7 +5,6 @@
 package router
 
 import (
-	"bytes"
 	"context"
 	"io/ioutil"
 	"net/http"
@@ -31,9 +30,7 @@ func TestSingleResponseBasic(t *testing.T) {
 
 	busTimeout = 100 * time.Millisecond
 
-	body := []byte("")
-	bodyReader := bytes.NewReader(body)
-	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", bodyReader)
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
 

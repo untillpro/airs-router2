@@ -125,9 +125,7 @@ func TestSimpleOKSectionedResponse(t *testing.T) {
 	setUp()
 	defer tearDown()
 
-	body := []byte("")
-	bodyReader := bytes.NewReader(body)
-	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", bodyReader)
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
 
@@ -147,9 +145,7 @@ func TestSectionedSendResponseError(t *testing.T) {
 
 	busTimeout = 100 * time.Millisecond
 
-	body := []byte("")
-	bodyReader := bytes.NewReader(body)
-	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", bodyReader)
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
 
@@ -169,9 +165,7 @@ func TestHandlerPanic(t *testing.T) {
 
 	busTimeout = 100 * time.Millisecond
 
-	body := []byte("")
-	bodyReader := bytes.NewReader(body)
-	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", bodyReader)
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
 
@@ -199,9 +193,7 @@ func TestStopReadSectionsOnClientDisconnect(t *testing.T) {
 	defer tearDown()
 
 	// send request
-	body := []byte("")
-	bodyReader := bytes.NewReader(body)
-	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", bodyReader)
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
 
@@ -245,9 +237,7 @@ func TestStopReadSectionsOnContextDone(t *testing.T) {
 	setUp()
 	defer tearDown()
 
-	body := []byte("")
-	bodyReader := bytes.NewReader(body)
-	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", bodyReader)
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
 
@@ -290,9 +280,7 @@ func TestFaileToWriteRespone(t *testing.T) {
 	setUp()
 	defer tearDown()
 
-	body := []byte("")
-	bodyReader := bytes.NewReader(body)
-	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", bodyReader)
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
 

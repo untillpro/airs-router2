@@ -16,27 +16,20 @@ import (
 )
 
 var (
-	// to check in tests
+	// checked in tests
 	busSrv    *bus.Service
 	routerSrv Service
-
-	routerPort             *int
-	natsServers            *string
-	routerWriteTimeout     *int
-	routerReadTimeout      *int
-	routerConnectionsLimit *int
-	verbose                *bool
 )
 
 // called directly in tests only
 func declare() {
 	fs := flag.NewFlagSet("", 1)
-	natsServers = fs.String("ns", "nats://127.0.0.1:4222", "The nats server URLs (separated by comma)")
-	routerPort = fs.Int("p", defaultRouterPort, "Server port")
-	routerWriteTimeout = fs.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
-	routerReadTimeout = fs.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
-	routerConnectionsLimit = fs.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
-	verbose = fs.Bool("v", false, "verbose, log raw NATS traffic")
+	var natsServers = fs.String("ns", "nats://127.0.0.1:4222", "The nats server URLs (separated by comma)")
+	var routerPort = fs.Int("p", defaultRouterPort, "Server port")
+	var routerWriteTimeout = fs.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
+	var routerReadTimeout = fs.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
+	var routerConnectionsLimit = fs.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
+	var verbose = fs.Bool("v", false, "verbose, log raw NATS traffic")
 	fs.Parse(os.Args)
 
 	queueNumberOfPartitions["airs-bp"] = airsBPPartitionsAmount
@@ -49,7 +42,6 @@ func declare() {
 		Verbose:          *verbose,
 	}
 	bus.Declare(busSrv)
-
 
 	routerSrv = Service{
 		Port:             *routerPort,
