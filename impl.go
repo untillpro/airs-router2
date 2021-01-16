@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-package router
+package main
 
 import (
 	"context"
@@ -28,6 +28,7 @@ const (
 	resourceNameVar               = "resource-name"
 	defaultRouterPort             = 8822
 	defaultRouterConnectionsLimit = 10000
+	defaultNATSServer             = "nats://127.0.0.1:4222"
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
 	defaultRouterReadTimeout  = 15
 	defaultRouterWriteTimeout = 15
@@ -89,7 +90,7 @@ func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection
 			if !writeResponse(w, `"sections":[`) {
 				return
 			}
-			closer = "],"
+			closer = "]"
 			sectionsOpened = true
 		} else {
 			if !writeResponse(w, ",") {
@@ -103,6 +104,9 @@ func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection
 	}
 
 	if *secErr != nil {
+		if len(closer) > 0 {
+			closer += ","
+		}
 		writeResponse(w, fmt.Sprintf(`%s"status":%d,"errorDescription":"%s"}`, closer, http.StatusInternalServerError, *secErr))
 	} else {
 		writeResponse(w, fmt.Sprintf(`%s}`, closer))

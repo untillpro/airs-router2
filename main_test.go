@@ -2,7 +2,7 @@
  * Copyright (c) 2020-present unTill Pro, Ltd.
  */
 
-package router
+package main
 
 import (
 	"os"
@@ -19,7 +19,7 @@ func TestCLI(t *testing.T) {
 	defer func() {
 		os.Args = initialArgs
 	}()
-	os.Args = []string{"-ns", "123", "-p", "8823", "-wt", "42", "-rt", "43", "-cl", "44", "-v"}
+	os.Args = []string{"appPath", "-ns", "123", "-p", "8823", "-wt", "42", "-rt", "43", "-cl", "44", "-v"}
 	declare()
 	defer godif.Reset()
 
@@ -43,12 +43,15 @@ func TestCLI(t *testing.T) {
 
 func TestOSExit(t *testing.T) {
 	osExitCalls := 0
+	initialArgs = os.Args
+	os.Args = []string{"appPath"}
+	defer func() { os.Args = initialArgs }()
+
 	patches := gomonkey.ApplyFunc(os.Exit, func(code int) {
 		require.Equal(t, 1, code)
 		osExitCalls++
 	})
 	defer patches.Reset()
 	main() // should fail to start because no NATS servers available for connection
-	godif.Reset()
 	require.Equal(t, 1, osExitCalls)
 }

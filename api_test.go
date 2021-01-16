@@ -2,13 +2,14 @@
  * Copyright (c) 2020-present unTill Pro, Ltd.
  */
 
-package router
+package main
 
 import (
 	"bytes"
 	"context"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ import (
 
 func TestCheck(t *testing.T) {
 	setUpHTTPOnly()
-	defer services.StopAndReset(ctx)
+	defer tearDown()
 
 	bodyReader := bytes.NewReader(nil)
 	resp, err := http.Post("http://127.0.0.1:8822/api/check", "", bodyReader)
@@ -35,10 +36,13 @@ func TestCheck(t *testing.T) {
 func TestQueueNames(t *testing.T) {
 	services.SetVerbose(false)
 	ibusnats.DeclareTest(1)
+	initialArgs = os.Args
+	os.Args = []string{"appPath"}
 	declare()
-	ctx, err := services.ResolveAndStart()
+	var err error
+	ctx, err = services.ResolveAndStart()
 	require.Nil(t, err, err)
-	defer services.StopAndReset(ctx)
+	defer tearDown()
 
 	bodyReader := bytes.NewReader(nil)
 	resp, err := http.Post("http://127.0.0.1:8822/api", "", bodyReader)
@@ -63,10 +67,13 @@ func TestNoResource(t *testing.T) {
 	currentQueueName = "airs-bp"
 	airsBPPartitionsAmount = 1
 	ibusnats.DeclareTest(1)
+	initialArgs = os.Args
+	os.Args = []string{"appPath"}
 	declare()
-	ctx, err := services.ResolveAndStart()
+	var err error
+	ctx, err = services.ResolveAndStart()
 	require.Nil(t, err, err)
-	defer services.StopAndReset(ctx)
+	defer tearDown()
 
 	bodyReader := bytes.NewReader(nil)
 	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1", "application/json", bodyReader)
@@ -80,7 +87,7 @@ func TestNoResource(t *testing.T) {
 
 func Test404(t *testing.T) {
 	setUpHTTPOnly()
-	defer services.StopAndReset(ctx)
+	defer tearDown()
 
 	bodyReader := bytes.NewReader(nil)
 	resp, err := http.Post("http://127.0.0.1:8822/api/wrong", "", bodyReader)
@@ -90,6 +97,8 @@ func Test404(t *testing.T) {
 }
 
 func setUpHTTPOnly() {
+	initialArgs = os.Args
+	os.Args = []string{"appPath"}
 	godif.ProvideSliceElement(&services.Services, &Service{
 		Port:             defaultRouterPort,
 		WriteTimeout:     defaultRouterWriteTimeout,
