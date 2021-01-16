@@ -55,8 +55,10 @@ func partitionHandler(ctx context.Context) http.HandlerFunc {
 		queueRequest.Resource = vars[resourceNameVar]
 		queueRequest.PartitionNumber = int(queueRequest.WSID % int64(numberOfPartitions))
 
-		// req's BaseContext is router service's context.
+		// req's BaseContext is router service's context. See service.Start()
 		// router app closing or client disconnected -> req.Context() is done
+		// ibusnats implementation of ibus.SendRequest2 tracks ctx.Done() and closes sections if done.
+		// So we need to track just sections only.
 		res, sections, secErr, err := ibus.SendRequest2(req.Context(), queueRequest, busTimeout)
 		if err != nil {
 			writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
@@ -76,11 +78,11 @@ func partitionHandler(ctx context.Context) http.HandlerFunc {
 
 func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection, secErr *error) {
 	setContentType(w, "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	if !writeResponse(w, "{") {
 		return
 	}
-	w.Header().Set("X-Content-Type-Options", "nosniff")
 	sectionsOpened := false
 
 	closer := ""

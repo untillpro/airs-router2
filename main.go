@@ -24,7 +24,7 @@ var (
 // called directly in tests only
 func declare() {
 	fs := flag.NewFlagSet("", 1)
-	var natsServers = fs.String("ns", defaultNATSSer, "The nats server URLs (separated by comma)")
+	var natsServers = fs.String("ns", defaultNATSServer, "The nats server URLs (separated by comma)")
 	var routerPort = fs.Int("p", defaultRouterPort, "Server port")
 	var routerWriteTimeout = fs.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
 	var routerReadTimeout = fs.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
