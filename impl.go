@@ -37,10 +37,11 @@ const (
 var (
 	queueNumberOfPartitions = make(map[string]int)
 	queueNamesJSON          []byte
-	currentQueueName        string                              // used in tests
-	airsBPPartitionsAmount  int           = 100                 // changes in tests
-	busTimeout              time.Duration = ibus.DefaultTimeout // changes in tests
-	onResponseWriteFailed   func()        = nil                 // used in tests
+	currentQueueName        string                                            // used in tests
+	airsBPPartitionsAmount  int                         = 100                 // changes in tests
+	busTimeout              time.Duration               = ibus.DefaultTimeout // changes in tests
+	onResponseWriteFailed   func()                      = nil                 // used in tests
+	onBeforeSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
 )
 
 func partitionHandler(ctx context.Context) http.HandlerFunc {
@@ -88,6 +89,10 @@ func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection
 	closer := ""
 	// ctx done -> sections will be closed by ibusnats implementation
 	for iSection := range sections {
+		if onBeforeSectionWrite != nil {
+			// happens in tests
+			onBeforeSectionWrite(w)
+		}
 		if !sectionsOpened {
 			if !writeResponse(w, `"sections":[`) {
 				return
@@ -102,12 +107,11 @@ func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection
 		if !writeSection(w, iSection) {
 			return
 		}
-		iSection = nil
 	}
 
 	if *secErr != nil {
-		if len(closer) > 0 {
-			closer += ","
+		if sectionsOpened {
+			closer = "],"
 		}
 		writeResponse(w, fmt.Sprintf(`%s"status":%d,"errorDescription":"%s"}`, closer, http.StatusInternalServerError, *secErr))
 	} else {
@@ -216,24 +220,22 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 			return false
 		}
 		isFirst := true
-		for val, ok := sec.Next(); ok; val, ok = sec.Next() { // ctx.Done() is tracked by Next()
+		closer := "}"
+		// ctx.Done() is tracked by ibusnats implementation: writting to section elem channel -> read here, ctxdone -> close elem channel
+		for val, ok := sec.Next(); ok; val, ok = sec.Next() {
 			if isFirst {
 				if !writeResponse(w, fmt.Sprintf(`,"elements":[%s`, string(val))) {
 					return false
 				}
 				isFirst = false
+				closer = "]}"
 			} else {
 				if !writeResponse(w, fmt.Sprintf(`,%s`, string(val))) {
 					return false
 				}
 			}
 		}
-		if !isFirst {
-			if !writeResponse(w, "]") {
-				return false
-			}
-		}
-		if !writeResponse(w, "}") {
+		if !writeResponse(w, closer) {
 			return false
 		}
 	case ibus.IObjectSection:
@@ -241,12 +243,7 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 			return false
 		}
 		val := sec.Value()
-		if len(val) > 0 {
-			if !writeResponse(w, fmt.Sprintf(`,"elements":%s`, string(val))) {
-				return false
-			}
-		}
-		if !writeResponse(w, "}") {
+		if !writeResponse(w, fmt.Sprintf(`,"elements":%s}`, string(val))) {
 			return false
 		}
 	case ibus.IMapSection:
@@ -254,22 +251,22 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 			return false
 		}
 		isFirst := true
-		for name, val, ok := sec.Next(); ok; name, val, ok = sec.Next() { // ctx.Done() is tracked by Next()
+		closer := "}"
+		// ctx.Done() is tracked by ibusnats implementation: writting to section elem channel -> read here, ctxdone -> close elem channel
+		for name, val, ok := sec.Next(); ok; name, val, ok = sec.Next() {
 			if isFirst {
 				if !writeResponse(w, fmt.Sprintf(`,"elements":{%q:%s`, name, string(val))) {
 					return false
 				}
 				isFirst = false
+				closer = "}}"
 			} else {
 				if !writeResponse(w, fmt.Sprintf(`,%q:%s`, name, string(val))) {
 					return false
 				}
 			}
 		}
-		if !isFirst && !writeResponse(w, "}") {
-			return false
-		}
-		if !writeResponse(w, "}") {
+		if !writeResponse(w, closer) {
 			return false
 		}
 	}

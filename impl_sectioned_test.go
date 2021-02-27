@@ -283,36 +283,39 @@ func TestStopReadSectionsOnContextDone(t *testing.T) {
 	<-ch
 }
 
-func TestFaileToWriteRespone(t *testing.T) {
+func TestFailedToWriteRespone(t *testing.T) {
 	ch := make(chan struct{})
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
 		rs.StartMapSection("secMap", []string{"2"})
 		require.Nil(t, rs.SendElement("id1", elem1))
+		ch <- struct{}{}
 		<-ch
+		rs.ObjectSection("objSec", []string{"3"}, 42)
 		rs.Close(nil)
 	})
 	onResponseWriteFailed = func() {
 		ch <- struct{}{}
 	}
-
 	setUp()
 	defer tearDown()
 
 	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
+	<-ch
+	onBeforeSectionWrite = func(w http.ResponseWriter) {
+		// disconnect the client
+		resp.Body.Close()
+		// wait for the write to the closed socket error. Sometimes appears not on first write.
+		for {
+			_, err := w.Write([]byte{0})
+			if err != nil {
+				break
+			}
+		}
+	}
+	ch <- struct{}{}
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
-
-	// read frist chunk. Normally it is "{"
-	buf := make([]byte, 512)
-	n, err := resp.Body.Read(buf)
-	require.Nil(t, err)
-	require.True(t, n > 0)
-
-	// disconnect the client.
-	resp.Body.Close()
-
-	ch <- struct{}{} // send more elements. Router will receive according bus packets but will fail to write it
 
 	// wait for fail to write response
 	<-ch
@@ -356,6 +359,7 @@ func tearDown() {
 	os.Args = initialArgs
 	busTimeout = ibus.DefaultTimeout
 	onResponseWriteFailed = nil
+	onBeforeSectionWrite = nil
 	os.Args = initialArgs
 }
 
