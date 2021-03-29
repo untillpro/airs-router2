@@ -19,7 +19,7 @@ func TestCLI(t *testing.T) {
 	defer func() {
 		os.Args = initialArgs
 	}()
-	os.Args = []string{"appPath", "-ns", "123", "-p", "8823", "-wt", "42", "-rt", "43", "-cl", "44", "-v"}
+	os.Args = []string{"appPath", "-ns", "123", "-p", "8823", "-wt", "42", "-rt", "43", "-cl", "44", "-v", "-skbps", "45"}
 	declare()
 	defer godif.Reset()
 
@@ -28,7 +28,8 @@ func TestCLI(t *testing.T) {
 		Queues: map[string]int{
 			"airs-bp": 100,
 		},
-		Verbose: true,
+		Verbose:                   true,
+		AllowedSectionKBitsPerSec: 45,
 	}
 	require.Equal(t, expectedBusSrv, busSrv)
 

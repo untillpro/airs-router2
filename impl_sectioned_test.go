@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"testing"
@@ -52,13 +53,13 @@ func TestSectionedBasic(t *testing.T) {
 		require.Equal(t, "airs-bp", request.QueueID)
 
 		rs := ibus.SendParallelResponse2(ctx, sender)
-		rs.ObjectSection("obj", []string{"meta"}, elem3)
+		require.Nil(t, rs.ObjectSection("obj", []string{"meta"}, elem3))
 		rs.StartMapSection(`哇"呀呀Map`, []string{`哇"呀呀`, "21"})
-		rs.SendElement("id1", elem1)
-		rs.SendElement(`哇"呀呀2`, elem11)
+		require.Nil(t, rs.SendElement("id1", elem1))
+		require.Nil(t, rs.SendElement(`哇"呀呀2`, elem11))
 		rs.StartArraySection("secArr", []string{"3"})
-		rs.SendElement("", elem21)
-		rs.SendElement("", elem22)
+		require.Nil(t, rs.SendElement("", elem21))
+		require.Nil(t, rs.SendElement("", elem22))
 		rs.Close(nil)
 	})
 
@@ -154,6 +155,52 @@ func TestSimpleErrorSectionedResponse(t *testing.T) {
 	expectOKRespJSON(t, resp)
 }
 
+func TestSlowConsumerError(t *testing.T) {
+	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
+		rs := ibus.SendParallelResponse2(ctx, sender)
+		rs.StartMapSection("secMap", []string{"2"})
+		require.Nil(t, rs.SendElement("1", 1))
+		rs.StartMapSection("secMap2", []string{"3"})
+		require.Error(t, ibusnats.ErrSlowConsumer, rs.SendElement("2", 2))
+
+		// allowed but pointless
+		rs.Close(nil)
+	})
+
+	setUp("-skbps", "100000000")
+
+	defer tearDown()
+	onAfterSectionWrite = func(w http.ResponseWriter) {
+		// force next section consume timeout
+		time.Sleep(400 * time.Millisecond)
+	}
+
+	ibusnats.SetSectionConsumeAddonTimeout(50 * time.Millisecond)
+
+	body := []byte("")
+	bodyReader := bytes.NewReader(body)
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", bodyReader)
+	require.Nil(t, err, err)
+	defer resp.Body.Close()
+
+	// start reading response
+	entireResp := []byte{}
+	for string(entireResp) != "{" { //`sections":[{"type":"secMap","path":["2"],"elements":{"elem1":42` {
+		buf := make([]byte, 512)
+		n, err := resp.Body.Read(buf)
+		require.Nil(t, err)
+		entireResp = append(entireResp, buf[:n]...)
+		log.Println(string(entireResp))
+	}
+
+	// simulate slow client
+	time.Sleep(400 * time.Millisecond)
+
+	respBody2, err := ioutil.ReadAll(resp.Body)
+	require.Nil(t, err)
+	require.Equal(t, `"sections":[{"type":"secMap","path":["2"],"elements":{"1":1}}],"status":500,"errorDescription":"section is processed too slow"}`, string(respBody2))
+}
+
 func TestSectionedSendResponseError(t *testing.T) {
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		// no response -> nats timeout on requester side
@@ -198,13 +245,11 @@ func TestStopReadSectionsOnClientDisconnect(t *testing.T) {
 	ch := make(chan struct{})
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
-		rs.StartMapSection("secMap", []string{"2"})   // sent, read by router
-		require.Nil(t, rs.SendElement("id1", elem1))  // sent, read by router
-		<-ch                                          // wait for client disconnect
-		require.Nil(t, rs.SendElement("id2", elem11)) // sent but there is nobody to read
-		rs.StartMapSection("secMap", []string{"2"})   // sent but there is nobody to read
-		require.Nil(t, rs.SendElement("id3", elem11)) // sent but there is nobody to read
-		rs.Close(nil)                                 // sent but there is nobody to read
+		rs.StartMapSection("secMap", []string{"2"})                             // sent, read by router
+		require.Nil(t, rs.SendElement("id1", elem1))                            // sent, read by router
+		<-ch                                                                    // wait for client disconnect
+		require.Error(t, ibusnats.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
+		rs.Close(nil)                                                           // allowed but pointless
 		ch <- struct{}{}
 	})
 
@@ -243,13 +288,11 @@ func TestStopReadSectionsOnContextDone(t *testing.T) {
 	ch := make(chan struct{})
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
-		rs.StartMapSection("secMap", []string{"2"})   // sent, read by router
-		require.Nil(t, rs.SendElement("id1", elem1))  // sent, read by router
-		<-ch                                          // wait for context done
-		require.Nil(t, rs.SendElement("id2", elem11)) // sent but there is nobody to read
-		rs.StartMapSection("secMap", []string{"2"})   // sent but there is nobody to read
-		require.Nil(t, rs.SendElement("id3", elem11)) // sent but there is nobody to read
-		rs.Close(nil)                                 // sent but there is nobody to read
+		rs.StartMapSection("secMap", []string{"2"})                             // sent, read by router
+		require.Nil(t, rs.SendElement("id1", elem1))                            // sent, read by router
+		<-ch                                                                    // wait for context done
+		require.Error(t, ibusnats.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
+		rs.Close(nil)                                                           // allowed bu pointless
 		ch <- struct{}{}
 	})
 
@@ -285,27 +328,29 @@ func TestStopReadSectionsOnContextDone(t *testing.T) {
 
 func TestFailedToWriteRespone(t *testing.T) {
 	ch := make(chan struct{})
+	failToWrite := make(chan struct{})
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
 		rs.StartMapSection("secMap", []string{"2"})
 		require.Nil(t, rs.SendElement("id1", elem1))
 		ch <- struct{}{}
 		<-ch
-		rs.ObjectSection("objSec", []string{"3"}, 42)
+		require.Error(t, ibusnats.ErrNoConsumer, rs.ObjectSection("objSec", []string{"3"}, 42))
 		rs.Close(nil)
+		ch <- struct{}{}
 	})
 	onResponseWriteFailed = func() {
-		ch <- struct{}{}
+		failToWrite <- struct{}{}
 	}
 	setUp()
 	defer tearDown()
 
 	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	<-ch
-	onBeforeSectionWrite = func(w http.ResponseWriter) {
+	onAfterSectionWrite = func(w http.ResponseWriter) {
 		// disconnect the client
 		resp.Body.Close()
-		// wait for the write to the closed socket error. Sometimes appears not on first write.
+		// wait for the write to the closed socket error. Sometimes does not appear on first write after socket close
 		for {
 			_, err := w.Write([]byte{0})
 			if err != nil {
@@ -318,6 +363,9 @@ func TestFailedToWriteRespone(t *testing.T) {
 	defer resp.Body.Close()
 
 	// wait for fail to write response
+	<-failToWrite
+
+	// wait for communication done
 	<-ch
 }
 
@@ -359,16 +407,18 @@ func tearDown() {
 	os.Args = initialArgs
 	busTimeout = ibus.DefaultTimeout
 	onResponseWriteFailed = nil
-	onBeforeSectionWrite = nil
+	onAfterSectionWrite = nil
 	os.Args = initialArgs
+	ibusnats.SetSectionConsumeAddonTimeout(ibus.DefaultTimeout)
 }
 
-func setUp() {
+func setUp(args ...string) {
 	currentQueueName = "airs-bp"
 	airsBPPartitionsAmount = 1
 	ibusnats.DeclareTest(1)
 	initialArgs = os.Args
-	os.Args = []string{"appPath"}
+	os.Args = []string{"appPath", "-v"}
+	os.Args = append(os.Args, args...)
 	declare()
 	godif.Require((&ibus.RequestHandler))
 	godif.Require(&ibus.SendParallelResponse2)

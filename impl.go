@@ -1,9 +1,7 @@
 /*
- * Copyright (c) 2019-present unTill Pro, Ltd. and Contributors
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2021-present unTill Pro, Ltd.
  */
+
 
 package main
 
@@ -32,6 +30,7 @@ const (
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
 	defaultRouterReadTimeout  = 15
 	defaultRouterWriteTimeout = 15
+	defaultAllowedSectionKBPS = 1000
 )
 
 var (
@@ -41,7 +40,7 @@ var (
 	airsBPPartitionsAmount  int                         = 100                 // changes in tests
 	busTimeout              time.Duration               = ibus.DefaultTimeout // changes in tests
 	onResponseWriteFailed   func()                      = nil                 // used in tests
-	onBeforeSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
+	onAfterSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
 )
 
 func partitionHandler(ctx context.Context) http.HandlerFunc {
@@ -58,9 +57,11 @@ func partitionHandler(ctx context.Context) http.HandlerFunc {
 
 		// req's BaseContext is router service's context. See service.Start()
 		// router app closing or client disconnected -> req.Context() is done
-		// ibusnats implementation of ibus.SendRequest2 tracks ctx.Done() and closes sections if done.
-		// So we need to track just sections only.
-		res, sections, secErr, err := ibus.SendRequest2(req.Context(), queueRequest, busTimeout)
+		// will create new cancellable context and cancel it if http section send is failed.
+		// newCtx.Done() -> SendRequest2 implementation will notify the handler that the consumer has left us
+		newCtx, cancel := context.WithCancel(req.Context())
+		defer cancel() // to avoid context leak
+		res, sections, secErr, err := ibus.SendRequest2(newCtx, queueRequest, busTimeout)
 		if err != nil {
 			writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
 			return
@@ -73,39 +74,64 @@ func partitionHandler(ctx context.Context) http.HandlerFunc {
 			return
 		}
 
-		writeSectionedResponse(resp, sections, secErr)
+		writeSectionedResponse(resp, sections, secErr, cancel)
 	}
 }
 
-func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection, secErr *error) {
+func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection, secErr *error, onSendFailed func()) {
+	ok := true
+	var iSection ibus.ISection
+	defer func() {
+		if !ok {
+			onSendFailed()
+			// consume all pending sections or elems to avoid hanging on ibusnats side
+			// normally should one pending elem or section because ibusnats implementation
+			// will terminate on next elem or section because `onSendFailed()` actually closes the context
+			switch t := iSection.(type) {
+			case nil:
+			case ibus.IObjectSection:
+				t.Value()
+			case ibus.IMapSection:
+				for _, _, ok := t.Next(); ok; _, _, ok = t.Next() {
+				}
+			case ibus.IArraySection:
+				for _, ok := t.Next(); ok; _, ok = t.Next() {
+				}
+			}
+			for range sections {
+			}
+		}
+	}()
+
 	setContentType(w, "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
-	if !writeResponse(w, "{") {
+	if ok = writeResponse(w, "{"); !ok {
 		return
 	}
 	sectionsOpened := false
 
 	closer := ""
 	// ctx done -> sections will be closed by ibusnats implementation
-	for iSection := range sections {
-		if onBeforeSectionWrite != nil {
-			// happens in tests
-			onBeforeSectionWrite(w)
-		}
+	for iSection = range sections {
+
 		if !sectionsOpened {
-			if !writeResponse(w, `"sections":[`) {
+			if ok = writeResponse(w, `"sections":[`); !ok {
 				return
 			}
 			closer = "]"
 			sectionsOpened = true
 		} else {
-			if !writeResponse(w, ",") {
+			if ok = writeResponse(w, ","); !ok {
 				return
 			}
 		}
-		if !writeSection(w, iSection) {
+		if ok = writeSection(w, iSection); !ok {
 			return
+		}
+		if onAfterSectionWrite != nil {
+			// happens in tests
+			onAfterSectionWrite(w)
 		}
 	}
 

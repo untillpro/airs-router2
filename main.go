@@ -19,6 +19,7 @@ var (
 	// checked in tests
 	busSrv    *bus.Service
 	routerSrv Service
+	allowedSectionKBPS     *int
 )
 
 // called directly in tests only
@@ -30,16 +31,19 @@ func declare() {
 	var routerReadTimeout = fs.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
 	var routerConnectionsLimit = fs.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
 	var verbose = fs.Bool("v", false, "verbose, log raw NATS traffic")
+	allowedSectionKBPS = fs.Int("skbps", defaultAllowedSectionKBPS, "Minimal allowed section consumption speed. See https://github.com/untillpro/airs-ibusnats/blob/master/README.md")
+
 	fs.Parse(os.Args[1:]) // os.Exit() on error
 
 	queueNumberOfPartitions["airs-bp"] = airsBPPartitionsAmount
 	queueNamesJSON = []byte(`["airs-bp"]`)
 
 	busSrv = &bus.Service{
-		NATSServers:      *natsServers,
-		Queues:           queueNumberOfPartitions,
-		CurrentQueueName: currentQueueName, // not empty in tests only
-		Verbose:          *verbose,
+		NATSServers:               *natsServers,
+		Queues:                    queueNumberOfPartitions,
+		CurrentQueueName:          currentQueueName, // not empty in tests only
+		Verbose:                   *verbose,
+		AllowedSectionKBitsPerSec: int32(*allowedSectionKBPS),
 	}
 	bus.Declare(busSrv)
 
