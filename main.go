@@ -17,9 +17,9 @@ import (
 
 var (
 	// checked in tests
-	busSrv    *bus.Service
-	routerSrv Service
-	allowedSectionKBPS     *int
+	busSrv             *bus.Service
+	routerSrv          Service
+	allowedSectionKBPS *int
 )
 
 // called directly in tests only

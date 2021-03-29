@@ -406,7 +406,7 @@ func setUp(args ...string) {
 	os.Args = []string{"appPath", "-v"}
 	os.Args = append(os.Args, args...)
 	declare()
-	godif.Require((&ibus.RequestHandler))
+	godif.Require(&ibus.RequestHandler)
 	godif.Require(&ibus.SendParallelResponse2)
 	godif.Require(&ibus.SendResponse)
 
