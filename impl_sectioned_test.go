@@ -188,13 +188,13 @@ func TestSlowConsumerError(t *testing.T) {
 	for string(entireResp) != "{" { //`sections":[{"type":"secMap","path":["2"],"elements":{"elem1":42` {
 		buf := make([]byte, 512)
 		n, err := resp.Body.Read(buf)
+		if err != nil && errors.Is(err, io.EOF) {
+			break
+		}
 		require.Nil(t, err)
 		entireResp = append(entireResp, buf[:n]...)
 		log.Println(string(entireResp))
 	}
-
-	// simulate slow client
-	time.Sleep(400 * time.Millisecond)
 
 	respBody2, err := ioutil.ReadAll(resp.Body)
 	require.Nil(t, err)
