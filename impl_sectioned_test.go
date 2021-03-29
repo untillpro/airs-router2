@@ -11,7 +11,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"testing"
@@ -183,22 +182,9 @@ func TestSlowConsumerError(t *testing.T) {
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
 
-	// start reading response
-	entireResp := []byte{}
-	for string(entireResp) != "{" { //`sections":[{"type":"secMap","path":["2"],"elements":{"elem1":42` {
-		buf := make([]byte, 512)
-		n, err := resp.Body.Read(buf)
-		if err != nil && errors.Is(err, io.EOF) {
-			break
-		}
-		require.Nil(t, err)
-		entireResp = append(entireResp, buf[:n]...)
-		log.Println(string(entireResp))
-	}
-
 	respBody2, err := ioutil.ReadAll(resp.Body)
 	require.Nil(t, err)
-	require.Equal(t, `"sections":[{"type":"secMap","path":["2"],"elements":{"1":1}}],"status":500,"errorDescription":"section is processed too slow"}`, string(respBody2))
+	require.Equal(t, `{"sections":[{"type":"secMap","path":["2"],"elements":{"1":1}}],"status":500,"errorDescription":"section is processed too slow"}`, string(respBody2))
 }
 
 func TestSectionedSendResponseError(t *testing.T) {
