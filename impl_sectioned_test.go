@@ -162,7 +162,6 @@ func TestSlowConsumerError(t *testing.T) {
 		rs.StartMapSection("secMap2", []string{"3"})
 		require.Error(t, ibusnats.ErrSlowConsumer, rs.SendElement("2", 2))
 
-		// allowed but pointless
 		rs.Close(nil)
 	})
 
@@ -203,7 +202,7 @@ func TestSectionedSendResponseError(t *testing.T) {
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
 	require.Nil(t, err)
-	require.Equal(t, "first response read failed: Timeout expired", string(respBodyBytes))
+	require.Equal(t, "first response read failed: "+ibus.ErrTimeoutExpired.Error(), string(respBodyBytes))
 	expect500RespPlainText(t, resp)
 }
 
@@ -235,7 +234,7 @@ func TestStopReadSectionsOnClientDisconnect(t *testing.T) {
 		require.Nil(t, rs.SendElement("id1", elem1))                            // sent, read by router
 		<-ch                                                                    // wait for client disconnect
 		require.Error(t, ibusnats.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
-		rs.Close(nil)                                                           // allowed but pointless
+		rs.Close(nil)
 		ch <- struct{}{}
 	})
 
@@ -278,7 +277,7 @@ func TestStopReadSectionsOnContextDone(t *testing.T) {
 		require.Nil(t, rs.SendElement("id1", elem1))                            // sent, read by router
 		<-ch                                                                    // wait for context done
 		require.Error(t, ibusnats.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
-		rs.Close(nil)                                                           // allowed bu pointless
+		rs.Close(nil)
 		ch <- struct{}{}
 	})
 
