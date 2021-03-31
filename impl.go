@@ -1,20 +1,15 @@
 /*
- * Copyright (c) 2019-present unTill Pro, Ltd. and Contributors
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * Copyright (c) 2021-present unTill Pro, Ltd.
  */
+
 
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
-	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -22,227 +17,166 @@ import (
 
 	"github.com/gorilla/mux"
 	ibus "github.com/untillpro/airs-ibus"
-	bus "github.com/untillpro/airs-ibusnats"
-	"github.com/untillpro/gochips"
-	"github.com/untillpro/godif/services"
+	"github.com/valyala/bytebufferpool"
 )
 
 const (
-	//Gorilla mux params
-	queueAliasVar   = "queue-alias"
-	wSIDVar         = "partition-dividend"
-	resourceNameVar = "resource-name"
-	contentType     = "Content-Type"
-	//Settings
+	queueAliasVar                 = "queue-alias"
+	wSIDVar                       = "partition-dividend"
+	resourceNameVar               = "resource-name"
 	defaultRouterPort             = 8822
 	defaultRouterConnectionsLimit = 10000
+	defaultNATSServer             = "nats://127.0.0.1:4222"
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
 	defaultRouterReadTimeout  = 15
 	defaultRouterWriteTimeout = 15
-	//Content-Type
-	contentJSON = "application/json"
+	defaultAllowedSectionKBPS = 1000
 )
 
-var queueNumberOfPartitions = make(map[string]int)
+var (
+	queueNumberOfPartitions = make(map[string]int)
+	queueNamesJSON          []byte
+	currentQueueName        string                                            // used in tests
+	airsBPPartitionsAmount  int                         = 100                 // changes in tests
+	busTimeout              time.Duration               = ibus.DefaultTimeout // changes in tests
+	onResponseWriteFailed   func()                      = nil                 // used in tests
+	onAfterSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
+)
 
-// PartitionedHandler handle partitioned requests
-func (s *Service) PartitionedHandler(ctx context.Context) http.HandlerFunc {
+func partitionHandler(ctx context.Context) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
-		var ok bool
-		var numberOfPartitions int
-		if numberOfPartitions, ok = queueNumberOfPartitions[vars[queueAliasVar]]; !ok {
-			writeTextResponse(resp, "can't find queue for alias: "+vars[queueAliasVar], http.StatusBadRequest)
-			return
-		}
+		numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
 		queueRequest, err := createRequest(req.Method, req)
 		if err != nil {
-			writeTextResponse(resp, err.Error(), http.StatusBadRequest)
+			log.Println("failed to read body:", err)
 			return
 		}
 		queueRequest.Resource = vars[resourceNameVar]
 		queueRequest.PartitionNumber = int(queueRequest.WSID % int64(numberOfPartitions))
-		processResponse(ctx, req, queueRequest, resp, ibus.DefaultTimeout)
+
+		// req's BaseContext is router service's context. See service.Start()
+		// router app closing or client disconnected -> req.Context() is done
+		// will create new cancellable context and cancel it if http section send is failed.
+		// newCtx.Done() -> SendRequest2 implementation will notify the handler that the consumer has left us
+		newCtx, cancel := context.WithCancel(req.Context())
+		defer cancel() // to avoid context leak
+		res, sections, secErr, err := ibus.SendRequest2(newCtx, queueRequest, busTimeout)
+		if err != nil {
+			writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if sections == nil {
+			setContentType(resp, res.ContentType)
+			resp.WriteHeader(res.StatusCode)
+			writeResponse(resp, string(res.Data))
+			return
+		}
+
+		writeSectionedResponse(resp, sections, secErr, cancel)
 	}
 }
 
-func writeSectionedResponse(w http.ResponseWriter, chunks <-chan []byte, chunksErr *error) {
-	setContentType(w, contentJSON)
-	w.WriteHeader(http.StatusOK)
-	if !writeResponse(w, "{") {
-		return
-	}
-	sections := ibus.BytesToSections(chunks, chunksErr)
+func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection, secErr *error, onSendFailed func()) {
+	ok := true
+	var iSection ibus.ISection
 	defer func() {
-		// TODO: test it.
-		for range sections {
+		if !ok {
+			onSendFailed()
+			// consume all pending sections or elems to avoid hanging on ibusnats side
+			// normally should one pending elem or section because ibusnats implementation
+			// will terminate on next elem or section because `onSendFailed()` actually closes the context
+			switch t := iSection.(type) {
+			case nil:
+			case ibus.IObjectSection:
+				t.Value()
+			case ibus.IMapSection:
+				for _, _, ok := t.Next(); ok; _, _, ok = t.Next() {
+				}
+			case ibus.IArraySection:
+				for _, ok := t.Next(); ok; _, ok = t.Next() {
+				}
+			}
+			for range sections {
+			}
 		}
 	}()
+
+	setContentType(w, "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	if ok = writeResponse(w, "{"); !ok {
+		return
+	}
 	sectionsOpened := false
 
 	closer := ""
-	for iSection := range sections {
+	// ctx done -> sections will be closed by ibusnats implementation
+	for iSection = range sections {
+
 		if !sectionsOpened {
-			if !writeResponse(w, `"sections":[`) {
+			if ok = writeResponse(w, `"sections":[`); !ok {
 				return
 			}
-			closer = "],"
+			closer = "]"
 			sectionsOpened = true
 		} else {
-			if !writeResponse(w, ",") {
+			if ok = writeResponse(w, ","); !ok {
 				return
 			}
 		}
-		if !writeSection(w, iSection) {
+		if ok = writeSection(w, iSection); !ok {
 			return
+		}
+		if onAfterSectionWrite != nil {
+			// happens in tests
+			onAfterSectionWrite(w)
 		}
 	}
 
-	if chunksErr != nil && *chunksErr != nil {
-		writeResponse(w, fmt.Sprintf(`%s"status":%d,"errorDescription":"%s"}`, closer, http.StatusInternalServerError, *chunksErr))
-		for range chunks {
+	if *secErr != nil {
+		if sectionsOpened {
+			closer = "],"
 		}
+		writeResponse(w, fmt.Sprintf(`%s"status":%d,"errorDescription":"%s"}`, closer, http.StatusInternalServerError, *secErr))
 	} else {
-		writeResponse(w, fmt.Sprintf(`%s"status":%d}`, closer, http.StatusOK))
+		writeResponse(w, fmt.Sprintf(`%s}`, closer))
 	}
 }
 
-func processResponse(ctx context.Context, req *http.Request, queueRequest *ibus.Request, resp http.ResponseWriter, timeout time.Duration) {
-	if req.Body != nil && req.Body != http.NoBody {
-		body, err := ioutil.ReadAll(req.Body)
-		if err != nil {
-			gochips.Error(err)
-			writeTextResponse(resp, "can't read request body: "+string(body), http.StatusBadRequest)
-			return
-		}
-		queueRequest.Body = body
-	}
-
-	var respFromInvoke *ibus.Response
-	var outChunks <-chan []byte
-	var outChunksErr *error
-	var err error
-	sendRequestFailed := false
-
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				sendRequestFailed = true
-				errorDesc := fmt.Sprintf("SendRequest() failed: %s\n%s", r, string(debug.Stack()))
-				gochips.Error(errorDesc)
-				writeTextResponse(resp, errorDesc, http.StatusInternalServerError)
-			}
-		}()
-		respFromInvoke, outChunks, outChunksErr, err = ibus.SendRequest(ctx, queueRequest, timeout)
-	}()
-	defer func() {
-		// TODO: test it.
-		if outChunks != nil {
-			for range outChunks {
-			}
-		}
-	}()
-	if sendRequestFailed {
-		return
-	}
-	if err != nil {
-		writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if respFromInvoke == nil {
-		writeTextResponse(resp, "nil response from bus", http.StatusInternalServerError)
-		return
-	}
-
-	if outChunks == nil {
-		setContentType(resp, respFromInvoke.ContentType)
-		resp.WriteHeader(respFromInvoke.StatusCode)
-		writeResponse(resp, string(respFromInvoke.Data))
-		return
-	}
-
-	writeSectionedResponse(resp, outChunks, outChunksErr)
-}
-
-// QueueNamesHandler returns registered queue names
-func (s *Service) QueueNamesHandler() http.HandlerFunc {
+func queueNamesHandler() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
-		keys := make([]string, 0, len(queueNumberOfPartitions))
-		for k := range queueNumberOfPartitions {
-			keys = append(keys, k)
-		}
-		marshaled, err := json.Marshal(keys)
-		if err != nil {
-			writeTextResponse(resp, "can't marshal queue aliases", http.StatusBadRequest)
-		}
-		_, err = fmt.Fprintf(resp, string(marshaled))
-		if err != nil {
-			writeTextResponse(resp, "can't write response", http.StatusBadRequest)
+		if _, err := resp.Write(queueNamesJSON); err != nil {
+			log.Println("failed to write queues names", err)
 		}
 	}
 }
 
-// CheckHandler returns ok if server works
-func (s *Service) CheckHandler() http.HandlerFunc {
+func checkHandler() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
-		resp.Write([]byte("ok"))
+		if _, err := resp.Write([]byte("ok")); err != nil {
+			log.Println("failed to write 'ok' response:", err)
+		}
 	}
 }
 
-func createRequest(reqMethod string, req *http.Request) (*ibus.Request, error) {
+func createRequest(reqMethod string, req *http.Request) (res ibus.Request, err error) {
 	vars := mux.Vars(req)
-	var WSID string
-	var ok bool
-	if WSID, ok = vars[wSIDVar]; !ok {
-		return nil, errors.New("WSID is missed")
-	}
+	WSID := vars[wSIDVar]
 	// no need to check to err because of regexp in a handler
 	WSIDNum, _ := strconv.ParseInt(WSID, 10, 64)
-	return &ibus.Request{
+	res = ibus.Request{
 		Method:  ibus.NameToHTTPMethod[reqMethod],
 		QueueID: vars[queueAliasVar],
 		WSID:    WSIDNum,
 		Query:   req.URL.Query(),
 		Header:  req.Header,
-	}, nil
-}
-
-// RegisterHandlers s.e.
-func (s *Service) RegisterHandlers(ctx context.Context) {
-	s.router.HandleFunc("/api/check", corsHandler(s.CheckHandler())).Methods("POST", "OPTIONS")
-	s.router.HandleFunc("/api", corsHandler(s.QueueNamesHandler()))
-	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}", queueAliasVar, wSIDVar), corsHandler(s.PartitionedHandler(ctx))).
-		Methods("POST", "OPTIONS")
-	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/]+}", queueAliasVar,
-		wSIDVar, resourceNameVar), corsHandler(s.PartitionedHandler(ctx))).
-		Methods("POST", "PATCH", "OPTIONS")
-}
-
-func addHandlers() {
-	queueNumberOfPartitions["airs-bp"] = 100
-}
-
-func main() {
-	var natsServers = flag.String("ns", bus.DefaultNATSHost, "The nats server URLs (separated by comma)")
-	var routerPort = flag.Int("p", defaultRouterPort, "Server port")
-	var routerWriteTimeout = flag.Int("wt", defaultRouterWriteTimeout, "Write timeout in seconds")
-	var routerReadTimeout = flag.Int("rt", defaultRouterReadTimeout, "Read timeout in seconds")
-	var routerConnectionsLimit = flag.Int("cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
-
-	flag.Parse()
-	gochips.Info("nats: " + *natsServers)
-
-	addHandlers()
-
-	bus.Declare(bus.Service{NATSServers: *natsServers, Queues: queueNumberOfPartitions})
-	Declare(Service{Port: *routerPort, WriteTimeout: *routerWriteTimeout, ReadTimeout: *routerReadTimeout,
-		ConnectionsLimit: *routerConnectionsLimit})
-
-	err := services.Run()
-	if err != nil {
-		gochips.Info(err)
 	}
+	if req.Body != nil && req.Body != http.NoBody {
+		res.Body, err = ioutil.ReadAll(req.Body)
+	}
+	return
 }
 
 func corsHandler(h http.Handler) http.HandlerFunc {
@@ -263,49 +197,48 @@ func setupResponse(w http.ResponseWriter) {
 }
 
 func writeTextResponse(w http.ResponseWriter, msg string, code int) bool {
+	setContentType(w, "text/plain")
 	w.WriteHeader(code)
-	w.Header().Set("Content-Type", "text/plain")
 	return writeResponse(w, msg)
 }
 
 func writeResponse(w http.ResponseWriter, data string) bool {
 	if _, err := w.Write([]byte(data)); err != nil {
-		gochips.Error(err)
+		stack := debug.Stack()
+		log.Println("failed to write response:", err, "\n", string(stack))
+		if onResponseWriteFailed != nil {
+			onResponseWriteFailed()
+		}
 		return false
 	}
+	w.(http.Flusher).Flush()
 	return true
 }
 
 func setContentType(resp http.ResponseWriter, cType string) {
-	resp.Header().Set(contentType, cType)
+	resp.Header().Set("Content-Type", cType)
 }
 
 func writeSectionHeader(w http.ResponseWriter, sec ibus.IDataSection) bool {
-	if !writeResponse(w, fmt.Sprintf(`{"type":%s`, escape(sec.Type()))) {
-		return false
-	}
+	buf := bytebufferpool.Get()
+	defer bytebufferpool.Put(buf)
+	buf.WriteString(fmt.Sprintf(`{"type":%q`, sec.Type()))
 	if len(sec.Path()) > 0 {
-		buf := bytes.NewBufferString("")
 		buf.WriteString(`,"path":[`)
-		for _, p := range sec.Path() {
-			buf.WriteString(fmt.Sprintf(`%s,`, escape(p)))
+		for i, p := range sec.Path() {
+			if i > 0 {
+				buf.WriteString(",")
+			}
+			buf.WriteString(fmt.Sprintf(`%q`, p))
 		}
-		buf.Truncate(buf.Len() - 1)
 		buf.WriteString("]")
-		if !writeResponse(w, string(buf.Bytes())) {
-			return false
-		}
+	}
+	if !writeResponse(w, string(buf.Bytes())) {
+		return false
 	}
 	return true
 }
 
-func escape(in string) string {
-	escapedBytes, _ := json.Marshal(in) // assuming errors are impossible
-	return string(escapedBytes)
-}
-
-// writes section to the writter
-// why not to have SectionToJSON()-like? To avoid of sections accumulation (have to read all elements in a section)
 func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 	switch sec := isec.(type) {
 	case ibus.IArraySection:
@@ -313,24 +246,22 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 			return false
 		}
 		isFirst := true
+		closer := "}"
+		// ctx.Done() is tracked by ibusnats implementation: writting to section elem channel -> read here, ctxdone -> close elem channel
 		for val, ok := sec.Next(); ok; val, ok = sec.Next() {
 			if isFirst {
 				if !writeResponse(w, fmt.Sprintf(`,"elements":[%s`, string(val))) {
 					return false
 				}
 				isFirst = false
+				closer = "]}"
 			} else {
 				if !writeResponse(w, fmt.Sprintf(`,%s`, string(val))) {
 					return false
 				}
 			}
 		}
-		if !isFirst {
-			if !writeResponse(w, "]") {
-				return false
-			}
-		}
-		if !writeResponse(w, "}") {
+		if !writeResponse(w, closer) {
 			return false
 		}
 	case ibus.IObjectSection:
@@ -338,12 +269,7 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 			return false
 		}
 		val := sec.Value()
-		if len(val) > 0 {
-			if !writeResponse(w, fmt.Sprintf(`,"elements":%s`, string(val))) {
-				return false
-			}
-		}
-		if !writeResponse(w, "}") {
+		if !writeResponse(w, fmt.Sprintf(`,"elements":%s}`, string(val))) {
 			return false
 		}
 	case ibus.IMapSection:
@@ -351,23 +277,22 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 			return false
 		}
 		isFirst := true
+		closer := "}"
+		// ctx.Done() is tracked by ibusnats implementation: writting to section elem channel -> read here, ctxdone -> close elem channel
 		for name, val, ok := sec.Next(); ok; name, val, ok = sec.Next() {
-			name = escape(name)
 			if isFirst {
-				if !writeResponse(w, fmt.Sprintf(`,"elements":{%s:%s`, name, string(val))) {
+				if !writeResponse(w, fmt.Sprintf(`,"elements":{%q:%s`, name, string(val))) {
 					return false
 				}
 				isFirst = false
+				closer = "}}"
 			} else {
-				if !writeResponse(w, fmt.Sprintf(`,%s:%s`, name, string(val))) {
+				if !writeResponse(w, fmt.Sprintf(`,%q:%s`, name, string(val))) {
 					return false
 				}
 			}
 		}
-		if !isFirst {
-			writeResponse(w, "}")
-		}
-		if !writeResponse(w, "}") {
+		if !writeResponse(w, closer) {
 			return false
 		}
 	}
