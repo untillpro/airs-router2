@@ -154,18 +154,18 @@ func TestSimpleErrorSectionedResponse(t *testing.T) {
 	expectOKRespJSON(t, resp)
 }
 
-func TestSlowConsumerError(t *testing.T) {
+func TestContinuationTimeoutError(t *testing.T) {
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
 		rs.StartMapSection("secMap", []string{"2"})
 		require.Nil(t, rs.SendElement("1", 1))
 		rs.StartMapSection("secMap2", []string{"3"})
-		require.Error(t, ibusnats.ErrSlowConsumer, rs.SendElement("2", 2))
+		require.ErrorIs(t, rs.SendElement("2", 2), ibus.ErrTimeoutExpired)
 
 		rs.Close(nil)
 	})
 
-	setUp("-skbps", "100000000")
+	setUp()
 
 	defer tearDown()
 	onAfterSectionWrite = func(w http.ResponseWriter) {
@@ -173,7 +173,8 @@ func TestSlowConsumerError(t *testing.T) {
 		time.Sleep(400 * time.Millisecond)
 	}
 
-	ibusnats.SetSectionConsumeAddonTimeout(50 * time.Millisecond)
+	ibusnats.SetContinuationTimeout(50 * time.Millisecond)
+	busTimeout = 200 * time.Millisecond
 
 	body := []byte("")
 	bodyReader := bytes.NewReader(body)
@@ -183,7 +184,7 @@ func TestSlowConsumerError(t *testing.T) {
 
 	respBody2, err := ioutil.ReadAll(resp.Body)
 	require.Nil(t, err)
-	require.Equal(t, `{"sections":[{"type":"secMap","path":["2"],"elements":{"1":1}}],"status":500,"errorDescription":"section is processed too slow"}`, string(respBody2))
+	require.Equal(t, `{"sections":[{"type":"secMap","path":["2"],"elements":{"1":1}},{"type":"secMap2","path":["3"],"elements":{"2":2}}],"status":500,"errorDescription":"response read failed: timeout expired"}`, string(respBody2))
 }
 
 func TestSectionedSendResponseError(t *testing.T) {
@@ -394,16 +395,15 @@ func tearDown() {
 	onResponseWriteFailed = nil
 	onAfterSectionWrite = nil
 	os.Args = initialArgs
-	ibusnats.SetSectionConsumeAddonTimeout(ibus.DefaultTimeout)
+	ibusnats.SetContinuationTimeout(ibus.DefaultTimeout)
 }
 
-func setUp(args ...string) {
+func setUp() {
 	currentQueueName = "airs-bp"
 	airsBPPartitionsAmount = 1
 	ibusnats.DeclareTest(1)
 	initialArgs = os.Args
 	os.Args = []string{"appPath", "-v"}
-	os.Args = append(os.Args, args...)
 	declare()
 	godif.Require(&ibus.RequestHandler)
 	godif.Require(&ibus.SendParallelResponse2)
