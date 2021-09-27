@@ -2,7 +2,7 @@
  * Copyright (c) 2020-present unTill Pro, Ltd.
  */
 
-package main
+package router2
 
 import (
 	"bytes"
@@ -38,7 +38,7 @@ func TestQueueNames(t *testing.T) {
 	ibusnats.DeclareTest(1)
 	initialArgs = os.Args
 	os.Args = []string{"appPath"}
-	declare()
+	Declare()
 	var err error
 	ctx, err = services.ResolveAndStart()
 	require.Nil(t, err, err)
@@ -69,7 +69,7 @@ func TestNoResource(t *testing.T) {
 	ibusnats.DeclareTest(1)
 	initialArgs = os.Args
 	os.Args = []string{"appPath"}
-	declare()
+	Declare()
 	var err error
 	ctx, err = services.ResolveAndStart()
 	require.Nil(t, err, err)

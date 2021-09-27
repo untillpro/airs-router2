@@ -11,39 +11,41 @@ import (
 	"github.com/agiledragon/gomonkey/v2"
 	"github.com/stretchr/testify/require"
 	ibusnats "github.com/untillpro/airs-ibusnats"
-	"github.com/untillpro/godif"
+	router2 "github.com/untillpro/airs-router2"
 )
 
 func TestCLI(t *testing.T) {
-	initialArgs = os.Args
+	initialArgs := os.Args
 	defer func() {
 		os.Args = initialArgs
 	}()
 	os.Args = []string{"appPath", "-ns", "123", "-p", "8823", "-wt", "42", "-rt", "43", "-cl", "44", "-v"}
-	declare()
-	defer godif.Reset()
-
+	cliParams := router2.ProvideCliParams()
+	actualIBusNATSSrv := router2.ProvideIBusNATSSrv(cliParams, router2.QueuesPartitionsMap{
+		"airs-bp": 100,
+	})
 	expectedBusSrv := &ibusnats.Service{
 		NATSServers: "123",
 		Queues: map[string]int{
 			"airs-bp": 100,
 		},
-		Verbose:                   true,
+		Verbose: true,
 	}
-	require.Equal(t, expectedBusSrv, busSrv)
+	require.Equal(t, expectedBusSrv, actualIBusNATSSrv)
 
-	expectedRouterSrv := Service{
+	actualRouterSrv := router2.ProvideRouterSrv(cliParams)
+	expectedRouterSrv := router2.Service{
 		Port:             8823,
 		WriteTimeout:     42,
 		ReadTimeout:      43,
 		ConnectionsLimit: 44,
 	}
-	require.Equal(t, expectedRouterSrv, routerSrv)
+	require.Equal(t, expectedRouterSrv, actualRouterSrv)
 }
 
 func TestOSExit(t *testing.T) {
 	osExitCalls := 0
-	initialArgs = os.Args
+	initialArgs := os.Args
 	os.Args = []string{"appPath"}
 	defer func() { os.Args = initialArgs }()
 

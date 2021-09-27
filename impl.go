@@ -2,8 +2,7 @@
  * Copyright (c) 2021-present unTill Pro, Ltd.
  */
 
-
-package main
+package router2
 
 import (
 	"context"
@@ -40,7 +39,7 @@ var (
 	airsBPPartitionsAmount  int                         = 100                 // changes in tests
 	busTimeout              time.Duration               = ibus.DefaultTimeout // changes in tests
 	onResponseWriteFailed   func()                      = nil                 // used in tests
-	onAfterSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
+	onAfterSectionWrite     func(w http.ResponseWriter) = nil                 // used in tests
 )
 
 func partitionHandler(ctx context.Context) http.HandlerFunc {

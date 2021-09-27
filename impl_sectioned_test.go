@@ -2,7 +2,7 @@
  * Copyright (c) 2020-present unTill Pro, Ltd.
  */
 
-package main
+package router2
 
 import (
 	"bytes"
@@ -404,7 +404,7 @@ func setUp() {
 	ibusnats.DeclareTest(1)
 	initialArgs = os.Args
 	os.Args = []string{"appPath", "-v"}
-	declare()
+	Declare()
 	godif.Require(&ibus.RequestHandler)
 	godif.Require(&ibus.SendParallelResponse2)
 	godif.Require(&ibus.SendResponse)
