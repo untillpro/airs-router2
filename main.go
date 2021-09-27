@@ -5,6 +5,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -17,11 +18,21 @@ import (
 
 var (
 	// checked in tests
-	busSrv             *bus.Service
-	routerSrv          Service
+	busSrv    *bus.Service
+	routerSrv Service
 )
 
-// called directly in tests only
+func DeclareEmbedded(routerSrv Service, queues map[string]int) {
+	queueNumberOfPartitions = queues
+	queuesNames := []string{}
+	for name := range queues {
+		queuesNames = append(queuesNames, name)
+	}
+	queueNamesJSON, _ = json.Marshal(&queuesNames) // error impossible
+	godif.ProvideSliceElement(&services.Services, &routerSrv)
+	godif.Require(&ibus.SendRequest2)
+}
+
 func declare() {
 	fs := flag.NewFlagSet("", 1)
 	var natsServers = fs.String("ns", defaultNATSServer, "The nats server URLs (separated by comma)")
@@ -33,14 +44,15 @@ func declare() {
 
 	fs.Parse(os.Args[1:]) // os.Exit() on error
 
-	queueNumberOfPartitions["airs-bp"] = airsBPPartitionsAmount
-	queueNamesJSON = []byte(`["airs-bp"]`)
+	queues := map[string]int{
+		"airs-bp": airsBPPartitionsAmount,
+	}
 
 	busSrv = &bus.Service{
-		NATSServers:               *natsServers,
-		Queues:                    queueNumberOfPartitions,
-		CurrentQueueName:          currentQueueName, // not empty in tests only
-		Verbose:                   *verbose,
+		NATSServers:      *natsServers,
+		Queues:           queues,
+		CurrentQueueName: currentQueueName, // not empty in tests only
+		Verbose:          *verbose,
 	}
 	bus.Declare(busSrv)
 
@@ -50,8 +62,7 @@ func declare() {
 		ReadTimeout:      *routerReadTimeout,
 		ConnectionsLimit: *routerConnectionsLimit,
 	}
-	godif.ProvideSliceElement(&services.Services, &routerSrv)
-	godif.Require(&ibus.SendRequest2)
+	DeclareEmbedded(routerSrv, queues)
 }
 
 func main() {
