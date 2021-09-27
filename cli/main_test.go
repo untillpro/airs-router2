@@ -8,7 +8,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/agiledragon/gomonkey/v2"
 	"github.com/stretchr/testify/require"
 	ibusnats "github.com/untillpro/airs-ibusnats"
 	router2 "github.com/untillpro/airs-router2"
@@ -41,19 +40,4 @@ func TestCLI(t *testing.T) {
 		ConnectionsLimit: 44,
 	}
 	require.Equal(t, expectedRouterSrv, actualRouterSrv)
-}
-
-func TestOSExit(t *testing.T) {
-	osExitCalls := 0
-	initialArgs := os.Args
-	os.Args = []string{"appPath"}
-	defer func() { os.Args = initialArgs }()
-
-	patches := gomonkey.ApplyFunc(os.Exit, func(code int) {
-		require.Equal(t, 1, code)
-		osExitCalls++
-	})
-	defer patches.Reset()
-	main() // should fail to start because no NATS servers available for connection
-	require.Equal(t, 1, osExitCalls)
 }

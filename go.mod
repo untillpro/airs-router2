@@ -3,7 +3,6 @@ module github.com/untillpro/airs-router2
 go 1.17
 
 require (
-	github.com/agiledragon/gomonkey/v2 v2.1.0
 	github.com/gorilla/mux v1.8.0
 	github.com/stretchr/testify v1.7.0
 	github.com/untillpro/airs-ibus v0.0.0-20210922095535-fe011767043f
