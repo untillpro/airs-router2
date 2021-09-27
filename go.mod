@@ -1,4 +1,4 @@
-module github.com/untillpro/airs-router
+module github.com/untillpro/airs-router2
 
 go 1.17
 
