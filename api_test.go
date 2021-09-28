@@ -100,10 +100,10 @@ func setUpHTTPOnly() {
 	initialArgs = os.Args
 	os.Args = []string{"appPath"}
 	godif.ProvideSliceElement(&services.Services, &Service{
-		Port:             defaultRouterPort,
-		WriteTimeout:     defaultRouterWriteTimeout,
-		ReadTimeout:      defaultRouterReadTimeout,
-		ConnectionsLimit: defaultRouterConnectionsLimit,
+		Port:             DefaultRouterPort,
+		WriteTimeout:     DefaultRouterWriteTimeout,
+		ReadTimeout:      DefaultRouterReadTimeout,
+		ConnectionsLimit: DefaultRouterConnectionsLimit,
 	})
 	var err error
 	services.SetVerbose(false)

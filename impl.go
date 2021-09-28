@@ -23,12 +23,12 @@ const (
 	queueAliasVar                 = "queue-alias"
 	wSIDVar                       = "partition-dividend"
 	resourceNameVar               = "resource-name"
-	defaultRouterPort             = 8822
-	defaultRouterConnectionsLimit = 10000
-	defaultNATSServer             = "nats://127.0.0.1:4222"
+	DefaultRouterPort             = 8822
+	DefaultRouterConnectionsLimit = 10000
+	DefaultNATSServer             = "nats://127.0.0.1:4222"
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
-	defaultRouterReadTimeout  = 15
-	defaultRouterWriteTimeout = 15
+	DefaultRouterReadTimeout  = 15
+	DefaultRouterWriteTimeout = 15
 )
 
 var (

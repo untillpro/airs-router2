@@ -49,11 +49,11 @@ type CLIParams struct {
 func ProvideCliParams() CLIParams {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	cp := CLIParams{}
-	fs.StringVar(&cp.NATSServers, "ns", defaultNATSServer, "The nats server URLs (separated by comma)")
-	fs.IntVar(&cp.RouterPort, "p", defaultRouterPort, "Server port")
-	fs.IntVar(&cp.RouterWriteTimeout, "wt", defaultRouterWriteTimeout, "Write timeout in seconds")
-	fs.IntVar(&cp.RouterReadTimeout, "rt", defaultRouterReadTimeout, "Read timeout in seconds")
-	fs.IntVar(&cp.RouterConnectionsLimit, "cl", defaultRouterConnectionsLimit, "Limit of incoming connections")
+	fs.StringVar(&cp.NATSServers, "ns", DefaultNATSServer, "The nats server URLs (separated by comma)")
+	fs.IntVar(&cp.RouterPort, "p", DefaultRouterPort, "Server port")
+	fs.IntVar(&cp.RouterWriteTimeout, "wt", DefaultRouterWriteTimeout, "Write timeout in seconds")
+	fs.IntVar(&cp.RouterReadTimeout, "rt", DefaultRouterReadTimeout, "Read timeout in seconds")
+	fs.IntVar(&cp.RouterConnectionsLimit, "cl", DefaultRouterConnectionsLimit, "Limit of incoming connections")
 	fs.BoolVar(&cp.Verbose, "v", false, "verbose, log raw NATS traffic")
 	fs.Parse(os.Args[1:]) // os.Exit() on error
 	return cp
