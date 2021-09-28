@@ -29,7 +29,6 @@ const (
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
 	defaultRouterReadTimeout  = 15
 	defaultRouterWriteTimeout = 15
-	defaultAllowedSectionKBPS = 1000
 )
 
 var (
