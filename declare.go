@@ -10,23 +10,12 @@ import (
 	"os"
 
 	ibus "github.com/untillpro/airs-ibus"
-	bus "github.com/untillpro/airs-ibusnats"
+	ibusnats "github.com/untillpro/airs-ibusnats"
 	"github.com/untillpro/godif"
 	"github.com/untillpro/godif/services"
 )
 
-func ProvideIBusNATSSrv(cp CLIParams, queues QueuesPartitionsMap) *bus.Service {
-	return &bus.Service{
-		NATSServers:      cp.NATSServers,
-		Queues:           queues,
-		CurrentQueueName: currentQueueName, // not empty in tests only
-		Verbose:          cp.Verbose,
-	}
-}
-
-type QueuesPartitionsMap map[string]int
-
-func DeclareEmbedded(routerSrv Service, queues QueuesPartitionsMap) {
+func DeclareEmbeddedRouter(routerSrv Service, queues ibusnats.QueuesPartitionsMap) {
 	queueNumberOfPartitions = queues
 	queuesNames := []string{}
 	for name := range queues {
@@ -37,8 +26,8 @@ func DeclareEmbedded(routerSrv Service, queues QueuesPartitionsMap) {
 	godif.Require(&ibus.SendRequest2)
 }
 
-type CLIParams struct {
-	NATSServers            string
+type RouterParams struct {
+	NATSServers            ibusnats.NATSServers
 	RouterPort             int
 	RouterWriteTimeout     int
 	RouterReadTimeout      int
@@ -46,40 +35,44 @@ type CLIParams struct {
 	Verbose                bool
 }
 
-func ProvideCliParams() CLIParams {
+func ProvideRouterParamsFromCmdLine() RouterParams {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
-	cp := CLIParams{}
-	fs.StringVar(&cp.NATSServers, "ns", DefaultNATSServer, "The nats server URLs (separated by comma)")
+	cp := RouterParams{}
+	fs.Var(&cp.NATSServers, "ns", "The nats server URLs (separated by comma)")
 	fs.IntVar(&cp.RouterPort, "p", DefaultRouterPort, "Server port")
 	fs.IntVar(&cp.RouterWriteTimeout, "wt", DefaultRouterWriteTimeout, "Write timeout in seconds")
 	fs.IntVar(&cp.RouterReadTimeout, "rt", DefaultRouterReadTimeout, "Read timeout in seconds")
 	fs.IntVar(&cp.RouterConnectionsLimit, "cl", DefaultRouterConnectionsLimit, "Limit of incoming connections")
 	fs.BoolVar(&cp.Verbose, "v", false, "verbose, log raw NATS traffic")
-	fs.Parse(os.Args[1:]) // os.Exit() on error
+	fs.Parse(os.Args[1:])
 	return cp
 }
 
 func Declare() {
-
-	queues := QueuesPartitionsMap{
+	queues := ibusnats.QueuesPartitionsMap{
 		"airs-bp": airsBPPartitionsAmount,
 	}
 
-	CLIParams := ProvideCliParams()
+	params := ProvideRouterParamsFromCmdLine()
 
-	busSrv := ProvideIBusNATSSrv(CLIParams, queues)
-	bus.Declare(busSrv)
+	ibusnatsSrv := &ibusnats.Service{
+		NATSServers:      params.NATSServers,
+		Queues:           queues,
+		CurrentQueueName: "airs-bp",
+		Verbose:          ibusnats.Verbose(params.Verbose),
+	}
+	ibusnats.Declare(ibusnatsSrv)
 
-	routerSrv := ProvideRouterSrv(CLIParams)
+	routerSrv := ProvideRouterSrv(params)
 
-	DeclareEmbedded(routerSrv, queues)
+	DeclareEmbeddedRouter(routerSrv, queues)
 }
 
-func ProvideRouterSrv(cp CLIParams) Service {
+func ProvideRouterSrv(rp RouterParams) Service {
 	return Service{
-		Port:             cp.RouterPort,
-		WriteTimeout:     cp.RouterWriteTimeout,
-		ReadTimeout:      cp.RouterReadTimeout,
-		ConnectionsLimit: cp.RouterConnectionsLimit,
+		Port:             rp.RouterPort,
+		WriteTimeout:     rp.RouterWriteTimeout,
+		ReadTimeout:      rp.RouterReadTimeout,
+		ConnectionsLimit: rp.RouterConnectionsLimit,
 	}
 }

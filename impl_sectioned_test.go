@@ -388,7 +388,6 @@ func expectJSONBody(t *testing.T, expectedJSON string, body io.Reader) {
 
 func tearDown() {
 	services.StopAndReset(ctx)
-	currentQueueName = ""
 	airsBPPartitionsAmount = 100
 	os.Args = initialArgs
 	busTimeout = ibus.DefaultTimeout
@@ -399,11 +398,10 @@ func tearDown() {
 }
 
 func setUp() {
-	currentQueueName = "airs-bp"
 	airsBPPartitionsAmount = 1
-	ibusnats.DeclareTest(1)
+	ibusnats.DeclareEmbeddedNATSServer()
 	initialArgs = os.Args
-	os.Args = []string{"appPath", "-v"}
+	os.Args = []string{"appPath", "-v", "-ns=" + ibusnats.DefaultEmbeddedNATSServerURL[0]}
 	Declare()
 	godif.Require(&ibus.RequestHandler)
 	godif.Require(&ibus.SendParallelResponse2)

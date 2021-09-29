@@ -25,7 +25,6 @@ const (
 	resourceNameVar               = "resource-name"
 	DefaultRouterPort             = 8822
 	DefaultRouterConnectionsLimit = 10000
-	DefaultNATSServer             = "nats://127.0.0.1:4222"
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
 	DefaultRouterReadTimeout  = 15
 	DefaultRouterWriteTimeout = 15
@@ -34,7 +33,6 @@ const (
 var (
 	queueNumberOfPartitions = make(map[string]int)
 	queueNamesJSON          []byte
-	currentQueueName        string                                            // used in tests
 	airsBPPartitionsAmount  int                         = 100                 // changes in tests
 	busTimeout              time.Duration               = ibus.DefaultTimeout // changes in tests
 	onResponseWriteFailed   func()                      = nil                 // used in tests

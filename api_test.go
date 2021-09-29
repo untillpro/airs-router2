@@ -35,7 +35,7 @@ func TestCheck(t *testing.T) {
 
 func TestQueueNames(t *testing.T) {
 	services.SetVerbose(false)
-	ibusnats.DeclareTest(1)
+	ibusnats.DeclareEmbeddedNATSServer()
 	initialArgs = os.Args
 	os.Args = []string{"appPath"}
 	Declare()
@@ -64,9 +64,8 @@ func TestNoResource(t *testing.T) {
 	godif.Require(&ibus.RequestHandler)
 	godif.Require(&ibus.SendResponse)
 	services.SetVerbose(false)
-	currentQueueName = "airs-bp"
 	airsBPPartitionsAmount = 1
-	ibusnats.DeclareTest(1)
+	ibusnats.DeclareEmbeddedNATSServer()
 	initialArgs = os.Args
 	os.Args = []string{"appPath"}
 	Declare()
