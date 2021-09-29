@@ -48,7 +48,7 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	return cp
 }
 
-func Declare() {
+func Declare(cqn ibusnats.CurrentQueueName) {
 	queues := ibusnats.QueuesPartitionsMap{
 		"airs-bp": airsBPPartitionsAmount,
 	}
@@ -58,7 +58,7 @@ func Declare() {
 	ibusnatsSrv := &ibusnats.Service{
 		NATSServers:      params.NATSServers,
 		Queues:           queues,
-		CurrentQueueName: "airs-bp",
+		CurrentQueueName: cqn, 
 		Verbose:          ibusnats.Verbose(params.Verbose),
 	}
 	ibusnats.Declare(ibusnatsSrv)

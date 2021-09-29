@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	router.Declare()
+	router.Declare("") // do not subscribe on any queue. Router does not handle messages from NATS. 
 	if err := services.Run(); err != nil {
 		log.Fatal(err)
 	}
