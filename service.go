@@ -2,7 +2,6 @@
  * Copyright (c) 2021-present unTill Pro, Ltd.
  */
 
-
 package router2
 
 import (
@@ -82,6 +81,9 @@ func (s *Service) registerHandlers(ctx context.Context) {
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}", queueAliasVar, wSIDVar), corsHandler(partitionHandler(ctx))).
 		Methods("POST", "OPTIONS")
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/]+}", queueAliasVar,
+		wSIDVar, resourceNameVar), corsHandler(partitionHandler(ctx))).
+		Methods("POST", "PATCH", "OPTIONS").Headers()
+	s.router.HandleFunc(fmt.Sprintf("/api/{%s:[0-9]+}/{%s:[a-zA-Z_/]+}", // queueless
 		wSIDVar, resourceNameVar), corsHandler(partitionHandler(ctx))).
 		Methods("POST", "PATCH", "OPTIONS").Headers()
 }
