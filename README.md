@@ -4,3 +4,4 @@ Purpose - read incoming http request, send to bus (currently implemented by `ibu
 # Error in sections
 http 200ok, but `"status":500,"errorDescription":"<error>"` is added to response stream
 
+-
