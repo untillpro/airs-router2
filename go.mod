@@ -5,8 +5,8 @@ go 1.17
 require (
 	github.com/gorilla/mux v1.8.0
 	github.com/stretchr/testify v1.7.0
-	github.com/untillpro/airs-ibus v0.0.0-20210922095535-fe011767043f
-	github.com/untillpro/airs-ibusnats v0.0.0-20210929125325-a66b471dc2b7
+	github.com/untillpro/airs-ibus v0.0.0-20211018104549-2abc028141d9
+	github.com/untillpro/airs-ibusnats v0.0.0-20211018104923-d92fe97fc139
 	github.com/untillpro/godif v0.18.0
 	github.com/valyala/bytebufferpool v1.0.0
 	golang.org/x/net v0.0.0-20201224014010-6772e930b67b

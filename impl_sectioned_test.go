@@ -231,10 +231,10 @@ func TestStopReadSectionsOnClientDisconnect(t *testing.T) {
 	ch := make(chan struct{})
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
-		rs.StartMapSection("secMap", []string{"2"})                             // sent, read by router
-		require.Nil(t, rs.SendElement("id1", elem1))                            // sent, read by router
-		<-ch                                                                    // wait for client disconnect
-		require.Error(t, ibusnats.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
+		rs.StartMapSection("secMap", []string{"2"})                         // sent, read by router
+		require.Nil(t, rs.SendElement("id1", elem1))                        // sent, read by router
+		<-ch                                                                // wait for client disconnect
+		require.Error(t, ibus.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
 		rs.Close(nil)
 		ch <- struct{}{}
 	})
@@ -274,10 +274,10 @@ func TestStopReadSectionsOnContextDone(t *testing.T) {
 	ch := make(chan struct{})
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
-		rs.StartMapSection("secMap", []string{"2"})                             // sent, read by router
-		require.Nil(t, rs.SendElement("id1", elem1))                            // sent, read by router
-		<-ch                                                                    // wait for context done
-		require.Error(t, ibusnats.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
+		rs.StartMapSection("secMap", []string{"2"})                         // sent, read by router
+		require.Nil(t, rs.SendElement("id1", elem1))                        // sent, read by router
+		<-ch                                                                // wait for context done
+		require.Error(t, ibus.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
 		rs.Close(nil)
 		ch <- struct{}{}
 	})
@@ -321,7 +321,7 @@ func TestFailedToWriteRespone(t *testing.T) {
 		require.Nil(t, rs.SendElement("id1", elem1))
 		ch <- struct{}{}
 		<-ch
-		require.Error(t, ibusnats.ErrNoConsumer, rs.ObjectSection("objSec", []string{"3"}, 42))
+		require.Error(t, ibus.ErrNoConsumer, rs.ObjectSection("objSec", []string{"3"}, 42))
 		rs.Close(nil)
 		ch <- struct{}{}
 	})
