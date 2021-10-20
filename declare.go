@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
+	"time"
 
 	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
@@ -15,7 +16,7 @@ import (
 	"github.com/untillpro/godif/services"
 )
 
-func DeclareEmbeddedRouter(routerSrv Service, queues ibusnats.QueuesPartitionsMap) {
+func DeclareEmbeddedRouter(routerSrv Service, queues ibusnats.QueuesPartitionsMap, BusTimeout time.Duration) {
 	queueNumberOfPartitions = queues
 	queuesNames := []string{}
 	for name := range queues {
@@ -24,6 +25,7 @@ func DeclareEmbeddedRouter(routerSrv Service, queues ibusnats.QueuesPartitionsMa
 	queueNamesJSON, _ = json.Marshal(&queuesNames) // error impossible
 	godif.ProvideSliceElement(&services.Services, &routerSrv)
 	godif.Require(&ibus.SendRequest2)
+	busTimeout = BusTimeout
 }
 
 type RouterParams struct {
@@ -58,14 +60,14 @@ func Declare(cqn ibusnats.CurrentQueueName) {
 	ibusnatsSrv := &ibusnats.Service{
 		NATSServers:      params.NATSServers,
 		Queues:           queues,
-		CurrentQueueName: cqn, 
+		CurrentQueueName: cqn,
 		Verbose:          ibusnats.Verbose(params.Verbose),
 	}
 	ibusnats.Declare(ibusnatsSrv)
 
 	routerSrv := ProvideRouterSrv(params)
 
-	DeclareEmbeddedRouter(routerSrv, queues)
+	DeclareEmbeddedRouter(routerSrv, queues, busTimeout)
 }
 
 func ProvideRouterSrv(rp RouterParams) Service {
