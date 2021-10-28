@@ -80,10 +80,7 @@ func (s *Service) registerHandlers(ctx context.Context) {
 	s.router.HandleFunc("/api", corsHandler(queueNamesHandler()))
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}", queueAliasVar, wSIDVar), corsHandler(partitionHandler(ctx))).
 		Methods("POST", "OPTIONS")
-	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/]+}", queueAliasVar,
-		wSIDVar, resourceNameVar), corsHandler(partitionHandler(ctx))).
-		Methods("POST", "PATCH", "OPTIONS").Headers()
-	s.router.HandleFunc(fmt.Sprintf("/api/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}",
+	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
 		wSIDVar, resourceNameVar), corsHandler(partitionHandler(ctx))).
 		Methods("POST", "PATCH", "OPTIONS").Headers()
 }
