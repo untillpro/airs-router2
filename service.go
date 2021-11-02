@@ -39,7 +39,7 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 	var err error
 	s.listener, err = net.Listen("tcp", ":"+port)
 	if err != nil {
-		return ctx, nil
+		return ctx, err
 	}
 
 	if s.ConnectionsLimit > 0 {
