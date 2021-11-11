@@ -10,7 +10,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -23,6 +26,17 @@ type Service struct {
 	router                                            *mux.Router
 	server                                            *http.Server
 	listener                                          net.Listener
+	reverseProxy                                      *reverseProxyHandler
+}
+
+type reverseProxyHandler struct {
+	// hostTarget dict must look like:
+	// 			"/count":"http://192.168.1.1:8080/count",
+	// 			"/metric":"http://192.168.1.1:8080/metric",
+	// 			"/users":"http://192.168.1.1:8080/users"
+	// and used for register path in multiplexer
+	hostTarget map[string]string
+	hostProxy  map[string]*httputil.ReverseProxy
 }
 
 type routerKeyType string
@@ -33,6 +47,7 @@ const routerKey = routerKeyType("router")
 func (s *Service) Start(ctx context.Context) (context.Context, error) {
 
 	s.router = mux.NewRouter()
+	s.reverseProxy = NewReverseProxy()
 
 	port := strconv.Itoa(s.Port)
 
@@ -57,6 +72,7 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 	}
 
 	s.registerHandlers(ctx)
+	s.registerReverseProxyHandlers()
 
 	log.Println("Router started")
 	go func() {
@@ -83,4 +99,66 @@ func (s *Service) registerHandlers(ctx context.Context) {
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
 		wSIDVar, resourceNameVar), corsHandler(partitionHandler(ctx))).
 		Methods("POST", "PATCH", "OPTIONS").Headers()
+}
+
+func (s *Service) registerReverseProxyHandlers() {
+	for path := range s.reverseProxy.hostTarget {
+		s.router.Handle(path, s.reverseProxy)
+	}
+}
+
+func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	host := req.Host
+	path := req.URL.Path
+	if proxy, ok := p.hostProxy[path]; ok {
+		proxy.ServeHTTP(res, req)
+		return
+	}
+	if target, ok := p.hostTarget[path]; ok {
+		remoteUrl, err := url.Parse(target)
+		if err != nil {
+			log.Println("target parse fail:", err)
+			return
+		}
+		proxy := p.createReverseProxy(remoteUrl)
+		p.hostProxy[path] = proxy
+		proxy.ServeHTTP(res, req)
+		return
+	}
+	res.WriteHeader(http.StatusNotFound)
+	res.Write([]byte("404: Not Found" + host + path))
+}
+
+func (p *reverseProxyHandler) createReverseProxy(remote *url.URL) *httputil.ReverseProxy {
+	targetQuery := remote.RawQuery
+	proxy := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			req.Host = remote.Host
+			req.URL.Scheme = remote.Scheme
+			req.URL.Host = remote.Host
+			req.URL.Path = singleJoiningSlash(remote.Path, req.URL.Path)
+			if targetQuery == "" || req.URL.RawQuery == "" {
+				req.URL.RawQuery = targetQuery + req.URL.RawQuery
+			} else {
+				req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
+			}
+		},
+	}
+	return proxy
+}
+
+func singleJoiningSlash(a, b string) string {
+	aslash := strings.HasSuffix(a, "/")
+	bslash := strings.HasPrefix(b, "/")
+	switch {
+	case aslash && bslash:
+		return a + b[1:]
+	case !aslash && !bslash:
+		return a + "/" + b
+	}
+	return a + b
+}
+
+func NewReverseProxy() *reverseProxyHandler {
+	return &reverseProxyHandler{make(map[string]string), make(map[string]*httputil.ReverseProxy)}
 }
