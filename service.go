@@ -6,7 +6,10 @@ package router2
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
 	"log"
 	"net"
 	"net/http"
@@ -24,6 +27,7 @@ type Service struct {
 	Port, WriteTimeout, ReadTimeout, ConnectionsLimit int
 	router                                            *mux.Router
 	server                                            *http.Server
+	acmeServer                                        *http.Server
 	listener                                          net.Listener
 	ReverseProxy                                      *reverseProxyHandler
 }
@@ -59,6 +63,11 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 		s.listener = netutil.LimitListener(s.listener, s.ConnectionsLimit)
 	}
 
+	if isProduction(s.Port) {
+		err = s.startServiceWithSSL(ctx, port)
+		return context.WithValue(ctx, routerKey, s), err
+	}
+
 	s.server = &http.Server{
 		BaseContext: func(l net.Listener) context.Context {
 			return ctx // need to track both client disconnect and app finalize
@@ -86,6 +95,11 @@ func (s *Service) Stop(ctx context.Context) {
 	if err := s.server.Shutdown(ctx); err != nil {
 		s.listener.Close()
 		s.server.Close()
+	}
+	if s.acmeServer != nil {
+		if err := s.acmeServer.Shutdown(ctx); err != nil {
+			s.acmeServer.Close()
+		}
 	}
 }
 
@@ -149,4 +163,69 @@ func (p *reverseProxyHandler) createReverseProxy(remote *url.URL) *httputil.Reve
 
 func NewReverseProxy(urlMapping map[string]string) *reverseProxyHandler {
 	return &reverseProxyHandler{urlMapping, make(map[string]*httputil.ReverseProxy)}
+}
+
+func isProduction(port int) bool {
+	if port == 443 {
+		return true
+	}
+	return false
+}
+
+func (s *Service) startServiceWithSSL(ctx context.Context, port string) (err error) {
+	hostPolicy := func(ctx context.Context, host string) error {
+		// Note: You MUST change to your real host
+		allowedHost := "paawx.sigmadomain.office.sigma-soft.ru"
+		if host == allowedHost {
+			return nil
+		}
+		return fmt.Errorf("acme/autocert: only %s host is allowed", allowedHost)
+	}
+	dataDir := "."
+	crtMgr := &autocert.Manager{
+		// Note: Client using in test environment, in production you MUST remove Client
+		Client: &acme.Client{
+			DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
+		},
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: hostPolicy,
+		Cache:      autocert.DirCache(dataDir),
+	}
+	s.server = &http.Server{
+		BaseContext: func(l net.Listener) context.Context {
+			return ctx // need to track both client disconnect and app finalize
+		},
+		Addr:         ":" + port,
+		Handler:      s.router,
+		ReadTimeout:  time.Duration(s.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(s.WriteTimeout) * time.Second,
+		TLSConfig:    &tls.Config{GetCertificate: crtMgr.GetCertificate},
+	}
+	s.registerHandlers(ctx)
+	s.registerReverseProxyHandlers()
+
+	go func() {
+		log.Printf("Starting HTTPS server on %s\n\n", s.server.Addr)
+		if err := s.server.ServeTLS(s.listener, "", ""); err != nil {
+			log.Fatalf("Service.ServeTLS() failed with %s", err)
+		}
+	}()
+
+	s.acmeServer = &http.Server{
+		Addr:         ":80",
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	}
+
+	if crtMgr != nil {
+		s.acmeServer.Handler = crtMgr.HTTPHandler(s.acmeServer.Handler)
+	}
+
+	go func() {
+		log.Printf("Starting HTTP server on %s\n\n", ":80")
+		if err := s.acmeServer.ListenAndServe(); err != nil {
+			log.Fatalf("http Service failed with %s", err)
+		}
+	}()
+	return err
 }
