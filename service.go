@@ -13,7 +13,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -26,7 +25,7 @@ type Service struct {
 	router                                            *mux.Router
 	server                                            *http.Server
 	listener                                          net.Listener
-	reverseProxy                                      *reverseProxyHandler
+	ReverseProxy                                      *reverseProxyHandler
 }
 
 type reverseProxyHandler struct {
@@ -47,7 +46,6 @@ const routerKey = routerKeyType("router")
 func (s *Service) Start(ctx context.Context) (context.Context, error) {
 
 	s.router = mux.NewRouter()
-	s.reverseProxy = NewReverseProxy()
 
 	port := strconv.Itoa(s.Port)
 
@@ -102,8 +100,10 @@ func (s *Service) registerHandlers(ctx context.Context) {
 }
 
 func (s *Service) registerReverseProxyHandlers() {
-	for path := range s.reverseProxy.hostTarget {
-		s.router.Handle(path, s.reverseProxy)
+	if s.ReverseProxy.hostProxy != nil {
+		for path := range s.ReverseProxy.hostTarget {
+			s.router.Handle(path, s.ReverseProxy)
+		}
 	}
 }
 
@@ -136,7 +136,7 @@ func (p *reverseProxyHandler) createReverseProxy(remote *url.URL) *httputil.Reve
 			req.Host = remote.Host
 			req.URL.Scheme = remote.Scheme
 			req.URL.Host = remote.Host
-			req.URL.Path = singleJoiningSlash(remote.Path, req.URL.Path)
+			req.URL.Path = remote.Path
 			if targetQuery == "" || req.URL.RawQuery == "" {
 				req.URL.RawQuery = targetQuery + req.URL.RawQuery
 			} else {
@@ -147,18 +147,6 @@ func (p *reverseProxyHandler) createReverseProxy(remote *url.URL) *httputil.Reve
 	return proxy
 }
 
-func singleJoiningSlash(a, b string) string {
-	aslash := strings.HasSuffix(a, "/")
-	bslash := strings.HasPrefix(b, "/")
-	switch {
-	case aslash && bslash:
-		return a + b[1:]
-	case !aslash && !bslash:
-		return a + "/" + b
-	}
-	return a + b
-}
-
-func NewReverseProxy() *reverseProxyHandler {
-	return &reverseProxyHandler{make(map[string]string), make(map[string]*httputil.ReverseProxy)}
+func NewReverseProxy(urlMapping map[string]string) *reverseProxyHandler {
+	return &reverseProxyHandler{urlMapping, make(map[string]*httputil.ReverseProxy)}
 }
