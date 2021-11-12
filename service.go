@@ -34,9 +34,9 @@ type Service struct {
 
 type reverseProxyHandler struct {
 	// hostTarget dict must look like:
-	// 			"/count":"http://192.168.1.1:8080/count",
-	// 			"/metric":"http://192.168.1.1:8080/metric",
-	// 			"/users":"http://192.168.1.1:8080/users"
+	// "/count":"http://192.168.1.1:8080/count",
+	// "/metric":"http://192.168.1.1:8080/metric",
+	// "/users":"http://192.168.1.1:8080/users"
 	// and used for register path in multiplexer
 	hostTarget map[string]string
 	hostProxy  map[string]*httputil.ReverseProxy
