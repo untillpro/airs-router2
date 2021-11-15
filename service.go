@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"log"
 	"net"
@@ -23,6 +22,9 @@ import (
 )
 
 // Service s.e.
+// if Service use port 44s, it will be started safely with TLS and use Lets Encrypt certificate
+// ReverseProxy create handlers for access to service inside security perimeter
+// AllowedHost is needed for hostPolicy function, that controls for which domain the Manager will attempt to retrieve new certificates
 type Service struct {
 	Port, WriteTimeout, ReadTimeout, ConnectionsLimit int
 	router                                            *mux.Router
@@ -30,6 +32,7 @@ type Service struct {
 	acmeServer                                        *http.Server
 	listener                                          net.Listener
 	ReverseProxy                                      *reverseProxyHandler
+	AllowedHost                                       string
 }
 
 type reverseProxyHandler struct {
@@ -64,7 +67,7 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 	}
 
 	if isProduction(s.Port) {
-		err = s.startServiceWithSSL(ctx, port)
+		err = s.startSecureService(ctx, port)
 		return context.WithValue(ctx, routerKey, s), err
 	}
 
@@ -166,27 +169,25 @@ func NewReverseProxy(urlMapping map[string]string) *reverseProxyHandler {
 }
 
 func isProduction(port int) bool {
-	if port == 443 {
+	if port == httpsPort {
 		return true
 	}
 	return false
 }
 
-func (s *Service) startServiceWithSSL(ctx context.Context, port string) (err error) {
+func (s *Service) startSecureService(ctx context.Context, port string) (err error) {
 	hostPolicy := func(ctx context.Context, host string) error {
-		// Note: You MUST change to your real host
-		allowedHost := "paawx.sigmadomain.office.sigma-soft.ru"
-		if host == allowedHost {
+		if host == s.AllowedHost {
 			return nil
 		}
-		return fmt.Errorf("acme/autocert: only %s host is allowed", allowedHost)
+		return fmt.Errorf("acme/autocert: only %s host is allowed", s.AllowedHost)
 	}
 	dataDir := "."
 	crtMgr := &autocert.Manager{
-		// Note: Client using in test environment, in production you MUST remove Client
-		Client: &acme.Client{
-			DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
-		},
+		// Note: In test environment use connection to Stage
+		// Client: &acme.Client{
+		// 	DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
+		// },
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: hostPolicy,
 		Cache:      autocert.DirCache(dataDir),
@@ -217,6 +218,7 @@ func (s *Service) startServiceWithSSL(ctx context.Context, port string) (err err
 		WriteTimeout: 5 * time.Second,
 	}
 
+	// handle Lets Encrypt callback over 80 port - only port 80 allowed
 	if crtMgr != nil {
 		s.acmeServer.Handler = crtMgr.HTTPHandler(s.acmeServer.Handler)
 	}
