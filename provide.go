@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2021-present Sigma-Soft, Ltd.
+ * Aleksei Ponomarev
+ */
+
 package router2
 
 func Provide(rp RouterParams, urlMapping map[string]string, allowedHost string) (Service, error) {
