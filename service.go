@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2021-present unTill Pro, Ltd.
- * Copyright (c) 2021-present Sigma-Soft, Ltd. Aleksei Ponomarev
  */
 
 package router2
@@ -61,8 +60,7 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 	port := strconv.Itoa(s.Port)
 
 	var err error
-	s.listener, err = net.Listen("tcp", ":"+port)
-	if err != nil {
+	if s.listener, err = net.Listen("tcp", ":"+port); err != nil {
 		return ctx, err
 	}
 
@@ -88,20 +86,17 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 	}
 
 	if s.Port == HTTPSPort {
-		err = s.startSecureService(ctx)
+		s.startSecureService()
 	} else {
 		go func() {
-			if err := s.server.Serve(s.listener); err != nil {
-				log.Println(err)
+			if err := s.server.Serve(s.listener); err != http.ErrServerClosed {
+				log.Fatalf("main HTTP server failure: %s", err.Error())
 			}
 		}()
 	}
 
-	if err == nil {
-		log.Println("Router started")
-		return context.WithValue(ctx, routerKey, s), nil
-	}
-	return ctx, err
+	log.Println("Router started")
+	return context.WithValue(ctx, routerKey, s), nil
 }
 
 // Stop s.e.
@@ -172,7 +167,7 @@ func NewReverseProxy(urlMapping map[string]string) *reverseProxyHandler {
 	return &reverseProxyHandler{urlMapping, make(map[string]*httputil.ReverseProxy)}
 }
 
-func (s *Service) startSecureService(ctx context.Context) (err error) {
+func (s *Service) startSecureService() {
 	hostPolicy := func(ctx context.Context, host string) error {
 		if host == s.HTTP01ChallengeHost {
 			return nil
@@ -181,10 +176,15 @@ func (s *Service) startSecureService(ctx context.Context) (err error) {
 	}
 	dataDir := "."
 	crtMgr := &autocert.Manager{
-		// Note: In test environment use connection to Stage
-		// Client: &acme.Client{
-		// 	DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
-		// },
+		/*
+			В том случае если требуется тестировать выпуск большого количества сертификатов для разных доменов,
+			то нужно использовать тестовый контур компании. Для этого в Manager требуется переопределить DirectoryURL в клиенте на
+			https://acme-staging-v02.api.letsencrypt.org/directory :
+			Client: &acme.Client{
+				DirectoryURL: "https://acme-staging-v02.api.letsencrypt.org/directory",
+			},
+			поскольку есть квоты на выпуск сертификатов - на количество доменов,  сертификатов в единицу времени и пр.
+		*/
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: hostPolicy,
 		Cache:      autocert.DirCache(dataDir),
@@ -192,8 +192,8 @@ func (s *Service) startSecureService(ctx context.Context) (err error) {
 	s.server.TLSConfig = &tls.Config{GetCertificate: crtMgr.GetCertificate}
 	go func() {
 		log.Printf("Starting HTTPS server on %s\n", s.server.Addr)
-		if err := s.server.ServeTLS(s.listener, "", ""); err != nil {
-			log.Fatalf("Service.ServeTLS() failed with %s", err)
+		if err := s.server.ServeTLS(s.listener, "", ""); err != http.ErrServerClosed {
+			log.Fatalf("Service.ServeTLS() failure: %s", err)
 		}
 	}()
 
@@ -208,9 +208,8 @@ func (s *Service) startSecureService(ctx context.Context) (err error) {
 
 	go func() {
 		log.Printf("Starting ACME HTTP server on %s\n\n", ":80")
-		if err := s.acmeServer.ListenAndServe(); err != nil {
-			log.Println(err)
+		if err := s.acmeServer.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatalf("ACME HTTP server failure: %v", err)
 		}
 	}()
-	return err
 }
