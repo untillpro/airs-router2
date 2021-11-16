@@ -176,12 +176,6 @@ func NewReverseProxy(urlMapping map[string]string) *reverseProxyHandler {
 }
 
 func (s *Service) startSecureService() {
-	hostPolicy := func(ctx context.Context, host string) error {
-		if host == s.HTTP01ChallengeHost {
-			return nil
-		}
-		return fmt.Errorf("acme/autocert: only %s host is allowed", s.HTTP01ChallengeHost)
-	}
 	dataDir := "."
 	crtMgr := &autocert.Manager{
 		/*
@@ -194,7 +188,7 @@ func (s *Service) startSecureService() {
 			поскольку есть квоты на выпуск сертификатов - на количество доменов,  сертификатов в единицу времени и пр.
 		*/
 		Prompt:     autocert.AcceptTOS,
-		HostPolicy: hostPolicy,
+		HostPolicy: autocert.HostWhitelist(s.HTTP01ChallengeHost),
 		Cache:      autocert.DirCache(dataDir),
 	}
 	s.server.TLSConfig = &tls.Config{GetCertificate: crtMgr.GetCertificate}
