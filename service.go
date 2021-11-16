@@ -36,6 +36,7 @@ type Service struct {
 	acmeServer          *http.Server
 	ReverseProxy        *reverseProxyHandler
 	HTTP01ChallengeHost string
+	HostTargetDefault   string
 }
 
 type reverseProxyHandler struct {
@@ -83,6 +84,13 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 		if err = s.registerReverseProxyHandlers(); err != nil {
 			return ctx, err
 		}
+	}
+	if len(s.HostTargetDefault) > 0 {
+		hostTargetDefaultURL, err := url.Parse(s.HostTargetDefault)
+		if err != nil {
+			return ctx, fmt.Errorf("host target default target url %s parse failed: %w", s.HostTargetDefault, err)
+		}
+		s.router.NotFoundHandler = s.ReverseProxy.createReverseProxy(hostTargetDefaultURL)
 	}
 
 	if s.Port == HTTPSPort {
