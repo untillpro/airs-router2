@@ -23,7 +23,7 @@ import (
 )
 
 // Service s.e.
-// if Service use port 44s, it will be started safely with TLS and use Lets Encrypt certificate
+// if Service use port 443, it will be started safely with TLS and use Lets Encrypt certificate
 // ReverseProxy create handlers for access to service inside security perimeter
 // AllowedHost is needed for hostPolicy function, that controls for which domain the Manager will attempt to retrieve new certificates
 type Service struct {
@@ -147,9 +147,8 @@ func (s *Service) registerReverseProxyHandlers() error {
 }
 
 func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	// если сюда попали, то not found уже быть не может, т.к. router уже нас сюда перенаправил с пути, зарагистрированному в registerReverseProxyHandlers()
 	path := req.URL.Path
-	proxy := p.hostProxy[path] // !ok быть не может, т.к. мы добавили в hostProxy тот же path, по которому нас сюда будет перенаправлять router
+	proxy := p.hostProxy[path]
 	proxy.ServeHTTP(res, req)
 }
 
