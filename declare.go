@@ -27,12 +27,13 @@ func DeclareEmbeddedRouter(routerSrv Service, queues ibusnats.QueuesPartitionsMa
 }
 
 type RouterParams struct {
-	NATSServers            ibusnats.NATSServers
-	RouterPort             int
-	RouterWriteTimeout     int
-	RouterReadTimeout      int
-	RouterConnectionsLimit int
-	Verbose                bool
+	NATSServers               ibusnats.NATSServers
+	RouterPort                int
+	RouterWriteTimeout        int
+	RouterReadTimeout         int
+	RouterConnectionsLimit    int
+	Verbose                   bool
+	RouterReverseProxyMapping map[string]string // used by airs-bp3 only
 }
 
 func ProvideRouterParamsFromCmdLine() RouterParams {
@@ -58,7 +59,7 @@ func Declare(cqn ibusnats.CurrentQueueName) {
 	ibusnatsSrv := &ibusnats.Service{
 		NATSServers:      params.NATSServers,
 		Queues:           queues,
-		CurrentQueueName: cqn, 
+		CurrentQueueName: cqn,
 		Verbose:          ibusnats.Verbose(params.Verbose),
 	}
 	ibusnats.Declare(ibusnatsSrv)

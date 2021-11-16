@@ -37,13 +37,8 @@ github.com/stretchr/objx v0.2.0/go.mod h1:qt09Ya8vawLte6SNmTgCsAVtYtaKzEcn8ATUoH
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5CcY=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
-github.com/untillpro/airs-ibus v0.0.0-20210908095909-ffa04e9f3bbd/go.mod h1:1I4FoKKps86qZfFCh+QjcGFXPlNgYHF68L4L04bAU6k=
-github.com/untillpro/airs-ibus v0.0.0-20210922095535-fe011767043f h1:XsfiFzacOcY+lRDQyqvr18wGYVgxw4E5VCeebAde80U=
-github.com/untillpro/airs-ibus v0.0.0-20210922095535-fe011767043f/go.mod h1:1I4FoKKps86qZfFCh+QjcGFXPlNgYHF68L4L04bAU6k=
 github.com/untillpro/airs-ibus v0.0.0-20211018104549-2abc028141d9 h1:CdI7r238BtnzwGRK5w0oynParoVCfV4cWjoasXFY/2Q=
 github.com/untillpro/airs-ibus v0.0.0-20211018104549-2abc028141d9/go.mod h1:1I4FoKKps86qZfFCh+QjcGFXPlNgYHF68L4L04bAU6k=
-github.com/untillpro/airs-ibusnats v0.0.0-20210929125325-a66b471dc2b7 h1:gS8Vf7pzLZoR6gCxoDuHK8BZzOshWCshLdfLSA0JHac=
-github.com/untillpro/airs-ibusnats v0.0.0-20210929125325-a66b471dc2b7/go.mod h1:ZY0WmHGXPVR8eJaPcDhKboVteTPIoah2cWb9ep28J2A=
 github.com/untillpro/airs-ibusnats v0.0.0-20211018104923-d92fe97fc139 h1:FJpJf1fUzes8YXE6+gl2IkCEau3QdwYVdEjg+Y8OrKU=
 github.com/untillpro/airs-ibusnats v0.0.0-20211018104923-d92fe97fc139/go.mod h1:KCI1OlAqbKMdQI3WkaEFp9JFFgb7ux5KHcmutX2vg0Q=
 github.com/untillpro/gochips v1.12.1-0.20191205115612-9cd10d0ac2b3 h1:6FcNUgKOtK6UqrjFGlW80WfrwgLjZPBdpUadFkw3mRw=
@@ -67,6 +62,7 @@ golang.org/x/sys v0.0.0-20201119102817-f84b799fce68 h1:nxC68pudNYkKU6jWhgrqdreuF
 golang.org/x/sys v0.0.0-20201119102817-f84b799fce68/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+golang.org/x/text v0.3.3 h1:cokOdA+Jmi5PJGXLlLllQSgYigAEfHXJAERHVMaCc2k=
 golang.org/x/text v0.3.3/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
 golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
 golang.org/x/tools v0.0.0-20190328211700-ab21143f2384/go.mod h1:LCzVGOaR6xXOjkQ3onu1FJEFr0SW1gC7cKk1uF8kGRs=
