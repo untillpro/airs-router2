@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"golang.org/x/crypto/acme/autocert"
 	"log"
 	"net"
 	"net/http"
@@ -16,6 +15,8 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/gorilla/mux"
 	"golang.org/x/net/netutil"
@@ -29,10 +30,12 @@ type Service struct {
 	Port, WriteTimeout, ReadTimeout, ConnectionsLimit int
 	router                                            *mux.Router
 	server                                            *http.Server
-	acmeServer                                        *http.Server
 	listener                                          net.Listener
-	ReverseProxy                                      *reverseProxyHandler
-	AllowedHost                                       string
+
+	// used in airs-bp3
+	acmeServer          *http.Server
+	ReverseProxy        *reverseProxyHandler
+	HTTP01ChallengeHost string
 }
 
 type reverseProxyHandler struct {
@@ -66,11 +69,6 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 		s.listener = netutil.LimitListener(s.listener, s.ConnectionsLimit)
 	}
 
-	if isProduction(s.Port) {
-		err = s.startSecureService(ctx, port)
-		return context.WithValue(ctx, routerKey, s), err
-	}
-
 	s.server = &http.Server{
 		BaseContext: func(l net.Listener) context.Context {
 			return ctx // need to track both client disconnect and app finalize
@@ -82,15 +80,27 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 	}
 
 	s.registerHandlers(ctx)
-	s.registerReverseProxyHandlers()
-
-	log.Println("Router started")
-	go func() {
-		if err := s.server.Serve(s.listener); err != nil {
-			log.Println(err)
+	if s.ReverseProxy != nil {
+		if err = s.registerReverseProxyHandlers(); err != nil {
+			return ctx, err
 		}
-	}()
-	return context.WithValue(ctx, routerKey, s), nil
+	}
+
+	if s.Port == HTTPSPort {
+		err = s.startSecureService(ctx)
+	} else {
+		go func() {
+			if err := s.server.Serve(s.listener); err != nil {
+				log.Println(err)
+			}
+		}()
+	}
+
+	if err == nil {
+		log.Println("Router started")
+		return context.WithValue(ctx, routerKey, s), nil
+	}
+	return ctx, err
 }
 
 // Stop s.e.
@@ -116,34 +126,27 @@ func (s *Service) registerHandlers(ctx context.Context) {
 		Methods("POST", "PATCH", "OPTIONS").Headers()
 }
 
-func (s *Service) registerReverseProxyHandlers() {
-	if s.ReverseProxy.hostProxy != nil {
-		for path := range s.ReverseProxy.hostTarget {
-			s.router.Handle(path, s.ReverseProxy)
+func (s *Service) registerReverseProxyHandlers() error {
+	for host, target := range s.ReverseProxy.hostTarget {
+		remoteUrl, err := url.Parse(target)
+		if err != nil {
+			return fmt.Errorf("target url %s parse failed: %w", target, err)
 		}
+		s.ReverseProxy.hostProxy[host] = s.ReverseProxy.createReverseProxy(remoteUrl)
 	}
+	for host, path := range s.ReverseProxy.hostTarget {
+		s.router.Handle(host, s.ReverseProxy)
+		log.Printf("reverse proxy route registered: %s -> %s\n", host, path)
+	}
+
+	return nil
 }
 
 func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	host := req.Host
+	// если сюда попали, то not found уже быть не может, т.к. router уже нас сюда перенаправил с пути, зарагистрированному в registerReverseProxyHandlers()
 	path := req.URL.Path
-	if proxy, ok := p.hostProxy[path]; ok {
-		proxy.ServeHTTP(res, req)
-		return
-	}
-	if target, ok := p.hostTarget[path]; ok {
-		remoteUrl, err := url.Parse(target)
-		if err != nil {
-			log.Println("target parse fail:", err)
-			return
-		}
-		proxy := p.createReverseProxy(remoteUrl)
-		p.hostProxy[path] = proxy
-		proxy.ServeHTTP(res, req)
-		return
-	}
-	res.WriteHeader(http.StatusNotFound)
-	res.Write([]byte("404: Not Found" + host + path))
+	proxy := p.hostProxy[path] // !ok быть не может, т.к. мы добавили в hostProxy тот же path, по которому нас сюда будет перенаправлять router
+	proxy.ServeHTTP(res, req)
 }
 
 func (p *reverseProxyHandler) createReverseProxy(remote *url.URL) *httputil.ReverseProxy {
@@ -168,19 +171,12 @@ func NewReverseProxy(urlMapping map[string]string) *reverseProxyHandler {
 	return &reverseProxyHandler{urlMapping, make(map[string]*httputil.ReverseProxy)}
 }
 
-func isProduction(port int) bool {
-	if port == httpsPort {
-		return true
-	}
-	return false
-}
-
-func (s *Service) startSecureService(ctx context.Context, port string) (err error) {
+func (s *Service) startSecureService(ctx context.Context) (err error) {
 	hostPolicy := func(ctx context.Context, host string) error {
-		if host == s.AllowedHost {
+		if host == s.HTTP01ChallengeHost {
 			return nil
 		}
-		return fmt.Errorf("acme/autocert: only %s host is allowed", s.AllowedHost)
+		return fmt.Errorf("acme/autocert: only %s host is allowed", s.HTTP01ChallengeHost)
 	}
 	dataDir := "."
 	crtMgr := &autocert.Manager{
@@ -192,21 +188,9 @@ func (s *Service) startSecureService(ctx context.Context, port string) (err erro
 		HostPolicy: hostPolicy,
 		Cache:      autocert.DirCache(dataDir),
 	}
-	s.server = &http.Server{
-		BaseContext: func(l net.Listener) context.Context {
-			return ctx // need to track both client disconnect and app finalize
-		},
-		Addr:         ":" + port,
-		Handler:      s.router,
-		ReadTimeout:  time.Duration(s.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(s.WriteTimeout) * time.Second,
-		TLSConfig:    &tls.Config{GetCertificate: crtMgr.GetCertificate},
-	}
-	s.registerHandlers(ctx)
-	s.registerReverseProxyHandlers()
-
+	s.server.TLSConfig = &tls.Config{GetCertificate: crtMgr.GetCertificate}
 	go func() {
-		log.Printf("Starting HTTPS server on %s\n\n", s.server.Addr)
+		log.Printf("Starting HTTPS server on %s\n", s.server.Addr)
 		if err := s.server.ServeTLS(s.listener, "", ""); err != nil {
 			log.Fatalf("Service.ServeTLS() failed with %s", err)
 		}
@@ -214,19 +198,17 @@ func (s *Service) startSecureService(ctx context.Context, port string) (err erro
 
 	s.acmeServer = &http.Server{
 		Addr:         ":80",
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
+		ReadTimeout:  DefaultACMEServerReadTimeout,
+		WriteTimeout: DefaultACMEServerWriteTimeout,
 	}
 
 	// handle Lets Encrypt callback over 80 port - only port 80 allowed
-	if crtMgr != nil {
-		s.acmeServer.Handler = crtMgr.HTTPHandler(s.acmeServer.Handler)
-	}
+	s.acmeServer.Handler = crtMgr.HTTPHandler(s.acmeServer.Handler)
 
 	go func() {
-		log.Printf("Starting HTTP server on %s\n\n", ":80")
+		log.Printf("Starting ACME HTTP server on %s\n\n", ":80")
 		if err := s.acmeServer.ListenAndServe(); err != nil {
-			log.Fatalf("http Service failed with %s", err)
+			log.Println(err)
 		}
 	}()
 	return err

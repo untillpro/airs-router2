@@ -12,6 +12,6 @@ func Provide(rp RouterParams, urlMapping map[string]string, allowedHost string) 
 		ReadTimeout:      rp.RouterReadTimeout,
 		ConnectionsLimit: rp.RouterConnectionsLimit,
 		ReverseProxy:     NewReverseProxy(urlMapping),
-		AllowedHost:      allowedHost,
+		HTTP01ChallengeHost:      allowedHost,
 	}, nil
 }

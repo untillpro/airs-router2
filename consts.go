@@ -5,6 +5,10 @@
 
 package router2
 
+import "time"
+
 const (
-	httpsPort = 443
+	HTTPSPort                     = 443
+	DefaultACMEServerReadTimeout  = 5 * time.Second
+	DefaultACMEServerWriteTimeout = 5 * time.Second
 )
