@@ -37,6 +37,7 @@ type Service struct {
 	ReverseProxy        *reverseProxyHandler
 	HTTP01ChallengeHost string
 	HostTargetDefault   string
+	CertDir             string
 }
 
 type reverseProxyHandler struct {
@@ -183,7 +184,6 @@ func NewReverseProxy(urlMapping map[string]string) *reverseProxyHandler {
 }
 
 func (s *Service) startSecureService() {
-	dataDir := "."
 	crtMgr := &autocert.Manager{
 		/*
 			В том случае если требуется тестировать выпуск большого количества сертификатов для разных доменов,
@@ -196,7 +196,7 @@ func (s *Service) startSecureService() {
 		*/
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(s.HTTP01ChallengeHost),
-		Cache:      autocert.DirCache(dataDir),
+		Cache:      autocert.DirCache(s.CertDir),
 	}
 	s.server.TLSConfig = &tls.Config{
 		GetCertificate: crtMgr.GetCertificate,
