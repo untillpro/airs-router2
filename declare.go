@@ -5,6 +5,7 @@
 package router2
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"os"
@@ -15,10 +16,9 @@ import (
 	"github.com/untillpro/godif/services"
 )
 
-func DeclareEmbeddedRouter(routerSrv Service, queues ibusnats.QueuesPartitionsMap) {
-	queueNumberOfPartitions = queues
+func DeclareEmbeddedRouter(routerSrv Service) {
 	queuesNames := []string{}
-	for name := range queues {
+	for name := range routerSrv.QueuePartitions {
 		queuesNames = append(queuesNames, name)
 	}
 	queueNamesJSON, _ = json.Marshal(&queuesNames) // error impossible
@@ -27,33 +27,41 @@ func DeclareEmbeddedRouter(routerSrv Service, queues ibusnats.QueuesPartitionsMa
 }
 
 type RouterParams struct {
-	NATSServers            ibusnats.NATSServers
-	RouterPort             int
-	RouterWriteTimeout     int
-	RouterReadTimeout      int
-	RouterConnectionsLimit int
-	Verbose                bool
+	NATSServers      ibusnats.NATSServers
+	Port             int
+	WriteTimeout     int
+	ReadTimeout      int
+	ConnectionsLimit int
+	Verbose          bool
+	QueuesPartitions ibusnats.QueuesPartitionsMap
+
+	// used in airs-bp3 only
+	HTTP01ChallengeHost string
+	CertDir             string
+	HostTargetDefault   string
+	ReverseProxyMapping map[string]string // used for register path in multiplexer, e.g. "/metric":"http://192.168.1.1:8080/metric"
 }
 
 func ProvideRouterParamsFromCmdLine() RouterParams {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
-	cp := RouterParams{}
-	fs.Var(&cp.NATSServers, "ns", "The nats server URLs (separated by comma)")
-	fs.IntVar(&cp.RouterPort, "p", DefaultRouterPort, "Server port")
-	fs.IntVar(&cp.RouterWriteTimeout, "wt", DefaultRouterWriteTimeout, "Write timeout in seconds")
-	fs.IntVar(&cp.RouterReadTimeout, "rt", DefaultRouterReadTimeout, "Read timeout in seconds")
-	fs.IntVar(&cp.RouterConnectionsLimit, "cl", DefaultRouterConnectionsLimit, "Limit of incoming connections")
-	fs.BoolVar(&cp.Verbose, "v", false, "verbose, log raw NATS traffic")
+	rp := RouterParams{}
+	fs.Var(&rp.NATSServers, "ns", "The nats server URLs (separated by comma)")
+	fs.IntVar(&rp.Port, "p", DefaultRouterPort, "Server port")
+	fs.IntVar(&rp.WriteTimeout, "wt", DefaultRouterWriteTimeout, "Write timeout in seconds")
+	fs.IntVar(&rp.ReadTimeout, "rt", DefaultRouterReadTimeout, "Read timeout in seconds")
+	fs.IntVar(&rp.ConnectionsLimit, "cl", DefaultRouterConnectionsLimit, "Limit of incoming connections")
+	fs.BoolVar(&rp.Verbose, "v", false, "verbose, log raw NATS traffic")
 	fs.Parse(os.Args[1:])
-	return cp
+	return rp
 }
 
-func Declare(cqn ibusnats.CurrentQueueName) {
+func Declare(ctx context.Context, cqn ibusnats.CurrentQueueName) {
 	queues := ibusnats.QueuesPartitionsMap{
 		"airs-bp": airsBPPartitionsAmount,
 	}
 
 	params := ProvideRouterParamsFromCmdLine()
+	params.QueuesPartitions = queues
 
 	ibusnatsSrv := &ibusnats.Service{
 		NATSServers:      params.NATSServers,
@@ -63,16 +71,12 @@ func Declare(cqn ibusnats.CurrentQueueName) {
 	}
 	ibusnats.Declare(ibusnatsSrv)
 
-	routerSrv := ProvideRouterSrv(params)
-
-	DeclareEmbeddedRouter(routerSrv, queues)
-}
-
-func ProvideRouterSrv(rp RouterParams) Service {
-	return Service{
-		Port:             rp.RouterPort,
-		WriteTimeout:     rp.RouterWriteTimeout,
-		ReadTimeout:      rp.RouterReadTimeout,
-		ConnectionsLimit: rp.RouterConnectionsLimit,
+	srvs := Provide(ctx, params)
+	routerSrv := Service{
+		RouterParams:    params,
+		srvs:            srvs,
+		QueuePartitions: queues,
 	}
+
+	DeclareEmbeddedRouter(routerSrv)
 }

@@ -22,10 +22,10 @@ func TestCLI(t *testing.T) {
 	actualRP := router.ProvideRouterParamsFromCmdLine()
 	expectedRP := router.RouterParams{
 		NATSServers:            ibusnats.NATSServers{"123"},
-		RouterPort:             8823,
-		RouterWriteTimeout:     42,
-		RouterReadTimeout:      43,
-		RouterConnectionsLimit: 44,
+		Port:             8823,
+		WriteTimeout:     42,
+		ReadTimeout:      43,
+		ConnectionsLimit: 44,
 		Verbose:                true,
 	}
 	require.Equal(t, expectedRP, actualRP)

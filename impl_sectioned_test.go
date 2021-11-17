@@ -402,7 +402,7 @@ func setUp() {
 	ibusnats.DeclareEmbeddedNATSServer()
 	initialArgs = os.Args
 	os.Args = []string{"appPath", "-v", "-ns=" + ibusnats.DefaultEmbeddedNATSServerURL[0]}
-	Declare("airs-bp")
+	Declare(context.Background(), "airs-bp")
 	godif.Require(&ibus.RequestHandler)
 	godif.Require(&ibus.SendParallelResponse2)
 	godif.Require(&ibus.SendResponse)

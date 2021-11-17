@@ -38,7 +38,7 @@ func TestQueueNames(t *testing.T) {
 	ibusnats.DeclareEmbeddedNATSServer()
 	initialArgs = os.Args
 	os.Args = []string{"appPath"}
-	Declare("airs-bp")
+	Declare(context.Background(), "airs-bp")
 	var err error
 	ctx, err = services.ResolveAndStart()
 	require.Nil(t, err, err)
@@ -68,7 +68,7 @@ func TestNoResource(t *testing.T) {
 	ibusnats.DeclareEmbeddedNATSServer()
 	initialArgs = os.Args
 	os.Args = []string{"appPath"}
-	Declare("airs-bp")
+	Declare(context.Background(), "airs-bp")
 	var err error
 	ctx, err = services.ResolveAndStart()
 	require.Nil(t, err, err)
@@ -99,10 +99,12 @@ func setUpHTTPOnly() {
 	initialArgs = os.Args
 	os.Args = []string{"appPath"}
 	godif.ProvideSliceElement(&services.Services, &Service{
-		Port:             DefaultRouterPort,
-		WriteTimeout:     DefaultRouterWriteTimeout,
-		ReadTimeout:      DefaultRouterReadTimeout,
-		ConnectionsLimit: DefaultRouterConnectionsLimit,
+		RouterParams: RouterParams{
+			Port:             DefaultRouterPort,
+			WriteTimeout:     DefaultRouterWriteTimeout,
+			ReadTimeout:      DefaultRouterReadTimeout,
+			ConnectionsLimit: DefaultRouterConnectionsLimit,
+		},
 	})
 	var err error
 	services.SetVerbose(false)

@@ -10,13 +10,13 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/http/httputil"
 	"runtime/debug"
 	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
 	ibus "github.com/untillpro/airs-ibus"
+	ibusnats "github.com/untillpro/airs-ibusnats"
 	"github.com/valyala/bytebufferpool"
 )
 
@@ -32,15 +32,14 @@ const (
 )
 
 var (
-	queueNumberOfPartitions = make(map[string]int)
-	queueNamesJSON          []byte
-	airsBPPartitionsAmount  int                         = 100                 // changes in tests
-	busTimeout              time.Duration               = ibus.DefaultTimeout // changes in tests
-	onResponseWriteFailed   func()                      = nil                 // used in tests
-	onAfterSectionWrite     func(w http.ResponseWriter) = nil                 // used in tests
+	queueNamesJSON         []byte
+	airsBPPartitionsAmount int                         = 100                 // changes in tests
+	busTimeout             time.Duration               = ibus.DefaultTimeout // changes in tests
+	onResponseWriteFailed  func()                      = nil                 // used in tests
+	onAfterSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
 )
 
-func partitionHandler(ctx context.Context) http.HandlerFunc {
+func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
 		numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
@@ -182,8 +181,6 @@ func corsHandler(h http.Handler) http.HandlerFunc {
 		if r.Method == "OPTIONS" {
 			return
 		}
-		b, _ := httputil.DumpRequest(r, false)
-		log.Println(string(b))
 		h.ServeHTTP(w, r)
 	}
 }
