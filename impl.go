@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"runtime/debug"
 	"strconv"
 	"time"
@@ -18,7 +19,6 @@ import (
 	ibus "github.com/untillpro/airs-ibus"
 	"github.com/valyala/bytebufferpool"
 )
-
 
 const (
 	queueAliasVar                 = "queue-alias"
@@ -182,6 +182,8 @@ func corsHandler(h http.Handler) http.HandlerFunc {
 		if r.Method == "OPTIONS" {
 			return
 		}
+		b, _ := httputil.DumpRequest(r, false)
+		log.Println(string(b))
 		h.ServeHTTP(w, r)
 	}
 }

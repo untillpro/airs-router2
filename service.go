@@ -90,7 +90,13 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 		if err != nil {
 			return ctx, fmt.Errorf("host target default target url %s parse failed: %w", s.HostTargetDefault, err)
 		}
-		s.router.NotFoundHandler = s.ReverseProxy.createReverseProxy(hostTargetDefaultURL)
+		notFoundHandler := s.ReverseProxy.createReverseProxy(hostTargetDefaultURL)
+		s.router.NotFoundHandler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			b, _ := httputil.DumpRequest(r, false)
+			log.Println("not found handler:\n" + string(b))
+			notFoundHandler.ServeHTTP(rw, r)
+		})
+
 	}
 
 	if s.Port == HTTPSPort {
@@ -149,6 +155,8 @@ func (s *Service) registerReverseProxyHandlers() error {
 func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 	proxy := p.hostProxy[path]
+	b, _ := httputil.DumpRequest(req, false)
+	log.Println(string(b))
 	proxy.ServeHTTP(res, req)
 }
 
@@ -190,11 +198,14 @@ func (s *Service) startSecureService() {
 		HostPolicy: autocert.HostWhitelist(s.HTTP01ChallengeHost),
 		Cache:      autocert.DirCache(dataDir),
 	}
-	s.server.TLSConfig = &tls.Config{GetCertificate: crtMgr.GetCertificate}
+	s.server.TLSConfig = &tls.Config{
+		GetCertificate: crtMgr.GetCertificate,
+		ServerName:     "127.0.0.1",
+	}
 	go func() {
 		log.Printf("Starting HTTPS server on %s\n", s.server.Addr)
 		if err := s.server.ServeTLS(s.listener, "", ""); err != http.ErrServerClosed {
-			log.Fatalf("Service.ServeTLS() failure: %s", err)
+			log.Println("Service.ServeTLS() failure: ", err.Error())
 		}
 	}()
 
@@ -205,12 +216,20 @@ func (s *Service) startSecureService() {
 	}
 
 	// handle Lets Encrypt callback over 80 port - only port 80 allowed
-	s.acmeServer.Handler = crtMgr.HTTPHandler(s.acmeServer.Handler)
+	s.acmeServer.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		b, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			log.Println("acme server: dump request failed: " + err.Error())
+		} else {
+			log.Println("not found handler:\n" + string(b))
+		}
+		crtMgr.HTTPHandler(s.acmeServer.Handler).ServeHTTP(rw, r)
+	})
 
 	go func() {
-		log.Printf("Starting ACME HTTP server on %s\n\n", ":80")
+		log.Println("Starting ACME HTTP server on :80")
 		if err := s.acmeServer.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatalf("ACME HTTP server failure: %v", err)
+			log.Println("ACME HTTP server failure: ", err.Error())
 		}
 	}()
 }
