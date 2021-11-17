@@ -92,8 +92,7 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 		}
 		notFoundHandler := s.ReverseProxy.createReverseProxy(hostTargetDefaultURL)
 		s.router.NotFoundHandler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			b, _ := httputil.DumpRequest(r, false)
-			log.Println("not found handler:\n" + string(b))
+			log.Printf("not found handler: %s %s, %s, %s, %s\n", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
 			notFoundHandler.ServeHTTP(rw, r)
 		})
 
@@ -152,12 +151,11 @@ func (s *Service) registerReverseProxyHandlers() error {
 	return nil
 }
 
-func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	path := req.URL.Path
+func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
 	proxy := p.hostProxy[path]
-	b, _ := httputil.DumpRequest(req, false)
-	log.Println(string(b))
-	proxy.ServeHTTP(res, req)
+	log.Printf("reverse proxy request: %s %s, %s, %s, %s\n", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
+	proxy.ServeHTTP(res, r)
 }
 
 func (p *reverseProxyHandler) createReverseProxy(remote *url.URL) *httputil.ReverseProxy {
@@ -217,12 +215,7 @@ func (s *Service) startSecureService() {
 
 	// handle Lets Encrypt callback over 80 port - only port 80 allowed
 	s.acmeServer.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		b, err := httputil.DumpRequest(r, true)
-		if err != nil {
-			log.Println("acme server: dump request failed: " + err.Error())
-		} else {
-			log.Println("not found handler:\n" + string(b))
-		}
+		log.Printf("acme server request: %s %s, %s, %s, %s\n", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
 		crtMgr.HTTPHandler(s.acmeServer.Handler).ServeHTTP(rw, r)
 	})
 
