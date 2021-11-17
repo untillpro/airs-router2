@@ -213,10 +213,11 @@ func (s *Service) startSecureService() {
 	}
 
 	// handle Lets Encrypt callback over 80 port - only port 80 allowed
-	s.acmeServer.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		log.Printf("acme server request: %s %s, %s, %s, %s\n", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
-		crtMgr.HTTPHandler(nil).ServeHTTP(rw, r)
-	})
+	s.acmeServer.Handler = crtMgr.HTTPHandler(s.acmeServer.Handler)
+	// s.acmeServer.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	// 	log.Printf("acme server request: %s %s, %s, %s, %s\n", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
+	// 	crtMgr.HTTPHandler(nil).ServeHTTP(rw, r)
+	// })
 
 	go func() {
 		log.Println("Starting ACME HTTP server on :80")
