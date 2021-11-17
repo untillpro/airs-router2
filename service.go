@@ -90,6 +90,7 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 		if err != nil {
 			return ctx, fmt.Errorf("host target default target url %s parse failed: %w", s.HostTargetDefault, err)
 		}
+		log.Println("host target default:" + hostTargetDefaultURL.String())
 		notFoundHandler := s.ReverseProxy.createReverseProxy(hostTargetDefaultURL)
 		s.router.NotFoundHandler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			log.Printf("not found handler: %s %s, %s, %s, %s\n", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
@@ -171,6 +172,7 @@ func (p *reverseProxyHandler) createReverseProxy(remote *url.URL) *httputil.Reve
 			} else {
 				req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
 			}
+			log.Printf("reverse proxy request %s, %s, %s, %s", targetQuery, req.Host, req.URL.String(), req.URL.RawQuery)
 		},
 	}
 	return proxy
