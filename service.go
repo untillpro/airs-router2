@@ -198,7 +198,7 @@ func (s *Service) startSecureService() {
 	}
 	s.server.TLSConfig = &tls.Config{
 		GetCertificate: crtMgr.GetCertificate,
-		ServerName:     "127.0.0.1",
+		ServerName:     s.HTTP01ChallengeHost,
 	}
 	go func() {
 		log.Printf("Starting HTTPS server on %s\n", s.server.Addr)
