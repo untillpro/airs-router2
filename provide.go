@@ -172,7 +172,7 @@ func (s *httpService) registerReverseProxyHandlers() error {
 			return fmt.Errorf("target url %s parse failed: %w", target, err)
 		}
 		s.reverseProxy.hostProxy[host] = createReverseProxy(remoteUrl)
-		s.router.Handle(host, s.reverseProxy)
+		s.router.PathPrefix(host).Handler(s.reverseProxy)
 		log.Printf("reverse proxy route registered: %s -> %s\n", host, target)
 	}
 	return nil
