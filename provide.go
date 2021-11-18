@@ -83,13 +83,14 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	rp := RouterParams{}
 	routerHostTargetsArr := []string{}
 	natsServers := ""
+	isVerbose := false
 	fs.StringVar(&natsServers, "ns", "", "The nats server URLs (separated by comma)")
 	fs.IntVar(&rp.Port, "p", DefaultRouterPort, "Server port")
 	fs.IntVar(&rp.WriteTimeout, "wt", DefaultRouterWriteTimeout, "Write timeout in seconds")
 	fs.IntVar(&rp.ReadTimeout, "rt", DefaultRouterReadTimeout, "Read timeout in seconds")
 	fs.IntVar(&rp.ConnectionsLimit, "cl", DefaultRouterConnectionsLimit, "Limit of incoming connections")
 	fs.BoolVar(&rp.Verbose, "v", false, "verbose, log raw NATS traffic")
-	fs.BoolVar(&rp.RouterOnly, "ro", false, "Router only mode, no NATS. http/https server will be launched. Any airs-bp-related request will cause 501 not implemented")
+	fs.BoolVar(&rp.RouterOnly, "ro", false, "Router only mode, no NATS. http/https server will be launched")
 
 	// actual for airs-bp3 only
 	fs.StringSliceVar(&routerHostTargetsArr, "rht", []string{}, "reverse proxy </url-part-after-ip>=<target> mapping")
@@ -102,6 +103,9 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	for _, rht := range routerHostTargetsArr {
 		hostTarget := strings.Split(rht, "=")
 		rp.ReverseProxyMapping[hostTarget[0]] = hostTarget[1]
+	}
+	if isVerbose {
+		logger.SetLogLevel(logger.LogLevelDebug)
 	}
 	return rp
 }

@@ -18,15 +18,16 @@ func TestCLI(t *testing.T) {
 	defer func() {
 		os.Args = initialArgs
 	}()
-	os.Args = []string{"appPath", "-ns", "123", "-p", "8823", "-wt", "42", "-rt", "43", "-cl", "44", "-v"}
+	os.Args = []string{"appPath", "--ns", "123", "--p", "8823", "--wt", "42", "--rt", "43", "--cl", "44", "--v"}
 	actualRP := router.ProvideRouterParamsFromCmdLine()
 	expectedRP := router.RouterParams{
-		NATSServers:            ibusnats.NATSServers{"123"},
+		NATSServers:      ibusnats.NATSServers{"123"},
 		Port:             8823,
 		WriteTimeout:     42,
 		ReadTimeout:      43,
 		ConnectionsLimit: 44,
-		Verbose:                true,
+		Verbose:          true,
+		CertDir:          ".",
 	}
 	require.Equal(t, expectedRP, actualRP)
 }
