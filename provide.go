@@ -150,7 +150,9 @@ func (s *httpService) Prepare(work interface{}) (err error) {
 		var handler http.Handler
 		if logger.IsDebug() {
 			handler = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				logger.Debug("not found handler: incoming", req.Host, req.Method, req.RemoteAddr, req.RequestURI, req.URL)
+				if logger.IsDebug() {
+					logger.Debug(fmt.Sprintf("reverse proxy: incoming %s %s%s", req.Method, req.Host, req.URL))
+				}
 				rp.ServeHTTP(rw, req)
 			})
 		} else {
