@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 
 	ibusnats "github.com/untillpro/airs-ibusnats"
 )
@@ -58,10 +59,16 @@ func (s *Service) Stop(ctx context.Context) {
 	}
 }
 
-func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	proxy := p.hostProxy[path]
-	proxy.ServeHTTP(res, r)
+func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	s := strings.FieldsFunc(req.URL.Path, func(c rune) bool { return c == '/' })
+	for i := 0; i < len(s); i++ {
+		path := "/" + strings.Join(s[0:len(s)-i], "/")
+		proxy, ok := p.hostProxy[path]
+		if ok {
+			proxy.ServeHTTP(res, req)
+			break
+		}
+	}
 }
 
 func createReverseProxy(remote *url.URL) *httputil.ReverseProxy {
@@ -71,7 +78,6 @@ func createReverseProxy(remote *url.URL) *httputil.ReverseProxy {
 			req.Host = remote.Host
 			req.URL.Scheme = remote.Scheme
 			req.URL.Host = remote.Host
-			req.URL.Path = remote.Path
 			if targetQuery == "" || req.URL.RawQuery == "" {
 				req.URL.RawQuery = targetQuery + req.URL.RawQuery
 			} else {
