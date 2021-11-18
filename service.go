@@ -7,10 +7,6 @@ package router2
 import (
 	"context"
 	"log"
-	"net/http"
-	"net/http/httputil"
-	"net/url"
-	"strings"
 
 	ibusnats "github.com/untillpro/airs-ibusnats"
 )
@@ -23,10 +19,6 @@ type Service struct {
 	RouterParams
 	QueuePartitions ibusnats.QueuesPartitionsMap
 	srvs            []interface{}
-}
-
-type reverseProxyHandler struct {
-	hostProxy map[string]*httputil.ReverseProxy
 }
 
 type routerKeyType string
@@ -47,7 +39,11 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 		}
 		go srv.Run(ctx)
 	}
-	log.Println("Router started")
+	if s.RouterOnly {
+		log.Println("Router started in router-only mode")
+	} else {
+		log.Println("Router started")
+	}
 	return context.WithValue(ctx, routerKey, s), nil
 }
 
@@ -57,33 +53,4 @@ func (s *Service) Stop(ctx context.Context) {
 		srv := srvIntf.(interface{ Stop() })
 		srv.Stop()
 	}
-}
-
-func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	s := strings.FieldsFunc(req.URL.Path, func(c rune) bool { return c == '/' })
-	for i := 0; i < len(s); i++ {
-		path := "/" + strings.Join(s[0:len(s)-i], "/")
-		proxy, ok := p.hostProxy[path]
-		if ok {
-			proxy.ServeHTTP(res, req)
-			break
-		}
-	}
-}
-
-func createReverseProxy(remote *url.URL) *httputil.ReverseProxy {
-	targetQuery := remote.RawQuery
-	proxy := &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
-			req.Host = remote.Host
-			req.URL.Scheme = remote.Scheme
-			req.URL.Host = remote.Host
-			if targetQuery == "" || req.URL.RawQuery == "" {
-				req.URL.RawQuery = targetQuery + req.URL.RawQuery
-			} else {
-				req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
-			}
-		},
-	}
-	return proxy
 }

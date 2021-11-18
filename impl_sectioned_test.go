@@ -397,6 +397,22 @@ func tearDown() {
 	ibusnats.SetContinuationTimeout(ibus.DefaultTimeout)
 }
 
+func TestRouterOnly(t *testing.T) {
+	initialArgs = os.Args
+	os.Args = []string{"appPath", "--ro"}
+	defer func() {
+		os.Args = initialArgs
+	}()
+	Declare(context.Background(), "airs-bp")
+	var err error
+	ctx, cancel = context.WithCancel(context.Background())
+	if ctx, err = services.ResolveAndStartCtx(ctx); err != nil {
+		panic(err)
+	}
+	services.SetVerbose(false)
+	time.Sleep(100000000000000)
+}
+
 func setUp() {
 	airsBPPartitionsAmount = 1
 	ibusnats.DeclareEmbeddedNATSServer()

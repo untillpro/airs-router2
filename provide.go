@@ -7,40 +7,23 @@ package router2
 import (
 	"context"
 	"crypto/tls"
+
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
-	ibusnats "github.com/untillpro/airs-ibusnats"
+	flag "github.com/spf13/pflag"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
 )
-
-type httpService struct {
-	RouterParams
-	router       *mux.Router
-	server       *http.Server
-	listener     net.Listener
-	reverseProxy *reverseProxyHandler
-	ctx          context.Context
-	queues       ibusnats.QueuesPartitionsMap
-}
-
-type httpsService struct {
-	httpService
-	crtMgr *autocert.Manager
-}
-
-type acmeService struct {
-	http.Server
-	ctx context.Context
-}
 
 // http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
 func Provide(ctx context.Context, rp RouterParams) []interface{} {
@@ -83,6 +66,34 @@ func Provide(ctx context.Context, rp RouterParams) []interface{} {
 		},
 	}
 	return []interface{}{httpsService, acmeService}
+}
+
+func ProvideRouterParamsFromCmdLine() RouterParams {
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	rp := RouterParams{}
+	routerHostTargetsArr := []string{}
+	natsServers := ""
+	fs.StringVar(&natsServers, "ns", "", "The nats server URLs (separated by comma)")
+	fs.IntVar(&rp.Port, "p", DefaultRouterPort, "Server port")
+	fs.IntVar(&rp.WriteTimeout, "wt", DefaultRouterWriteTimeout, "Write timeout in seconds")
+	fs.IntVar(&rp.ReadTimeout, "rt", DefaultRouterReadTimeout, "Read timeout in seconds")
+	fs.IntVar(&rp.ConnectionsLimit, "cl", DefaultRouterConnectionsLimit, "Limit of incoming connections")
+	fs.BoolVar(&rp.Verbose, "v", false, "verbose, log raw NATS traffic")
+	fs.BoolVar(&rp.RouterOnly, "ro", false, "Router only mode, no NATS. http/https server will be launched. Any airs-bp-related request will cause 501 not implemented")
+
+	// actual for airs-bp3 only
+	fs.StringSliceVar(&routerHostTargetsArr, "rht", []string{}, "reverse proxy </url-part-after-ip>=<target> mapping")
+	fs.StringVar(&rp.HTTP01ChallengeHost, "rch", "", "HTTP-01 Challenge host for let's encrypt service. Must be specified if router-port is 443, ignored otherwise")
+	fs.StringVar(&rp.HostTargetDefault, "rhtd", "", "url to be redirected to if url is unknown")
+	fs.StringVar(&rp.CertDir, "rcd", ".", "SSL certificates dir")
+
+	fs.Parse(os.Args[1:])
+	rp.NATSServers.Set(natsServers)
+	for _, rht := range routerHostTargetsArr {
+		hostTarget := strings.Split(rht, "=")
+		rp.ReverseProxyMapping[hostTarget[0]] = hostTarget[1]
+	}
+	return rp
 }
 
 func (s *httpsService) Prepare(work interface{}) error {
@@ -198,4 +209,33 @@ func (s *acmeService) Stop() {
 	if err := s.Shutdown(s.ctx); err != nil {
 		s.Close()
 	}
+}
+
+func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	s := strings.FieldsFunc(req.URL.Path, func(c rune) bool { return c == '/' })
+	for i := 0; i < len(s); i++ {
+		path := "/" + strings.Join(s[0:len(s)-i], "/")
+		proxy, ok := p.hostProxy[path]
+		if ok {
+			proxy.ServeHTTP(res, req)
+			break
+		}
+	}
+}
+
+func createReverseProxy(remote *url.URL) *httputil.ReverseProxy {
+	targetQuery := remote.RawQuery
+	proxy := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			req.Host = remote.Host
+			req.URL.Scheme = remote.Scheme
+			req.URL.Host = remote.Host
+			if targetQuery == "" || req.URL.RawQuery == "" {
+				req.URL.RawQuery = targetQuery + req.URL.RawQuery
+			} else {
+				req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
+			}
+		},
+	}
+	return proxy
 }
