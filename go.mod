@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/gorilla/mux v1.8.0
+	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	github.com/untillpro/airs-ibus v0.0.0-20211023095014-ac94d11f5a63
 	github.com/untillpro/airs-ibusnats v0.0.0-20211018104923-d92fe97fc139
@@ -11,11 +12,11 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0
 	golang.org/x/crypto v0.0.0-20211115234514-b4de73f9ece8
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
-	github.com/spf13/pflag v1.0.5
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/heeus/core-logger v0.0.0-20211015110533-1499b5b04842
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/nats-io/jwt/v2 v2.2.0 // indirect

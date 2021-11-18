@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	logger "github.com/heeus/core-logger"
 	flag "github.com/spf13/pflag"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
@@ -64,6 +65,15 @@ func Provide(ctx context.Context, rp RouterParams) []interface{} {
 			WriteTimeout: DefaultACMEServerWriteTimeout,
 			Handler:      crtMgr.HTTPHandler(nil),
 		},
+	}
+	acmeServiceHadler := crtMgr.HTTPHandler(nil)
+	if logger.IsDebug() {
+		acmeService.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			logger.Debug("acme server request:", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
+			acmeServiceHadler.ServeHTTP(rw, r)
+		})
+	} else {
+		acmeService.Handler = acmeServiceHadler
 	}
 	return []interface{}{httpsService, acmeService}
 }
@@ -126,7 +136,17 @@ func (s *httpService) Prepare(work interface{}) (err error) {
 		if err != nil {
 			return fmt.Errorf("host target default target url %s parse failed: %w", s.HostTargetDefault, err)
 		}
-		s.router.NotFoundHandler = createReverseProxy(hostTargetDefaultURL)
+		rp := createReverseProxy(hostTargetDefaultURL)
+		var handler http.Handler
+		if logger.IsDebug() {
+			handler = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				logger.Debug("not found handler: incoming", req.Host, req.Method, req.RemoteAddr, req.RequestURI, req.URL)
+				rp.ServeHTTP(rw, req)
+			})
+		} else {
+			handler = rp
+		}
+		s.router.NotFoundHandler = handler
 	}
 
 	port := strconv.Itoa(s.RouterParams.Port)
@@ -217,6 +237,7 @@ func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Reque
 		path := "/" + strings.Join(s[0:len(s)-i], "/")
 		proxy, ok := p.hostProxy[path]
 		if ok {
+			logger.Debug("reverse proxy: incoming", req.Host, req.Method, req.RemoteAddr, req.RequestURI, req.URL, ", redirecting to", path)
 			proxy.ServeHTTP(res, req)
 			break
 		}
