@@ -81,8 +81,8 @@ func Provide(ctx context.Context, rp RouterParams) []interface{} {
 func ProvideRouterParamsFromCmdLine() RouterParams {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	rp := RouterParams{}
-	routerHostTargetsArr := []string{}
-	routerHostTargetsRewriteArr := []string{}
+	routes := []string{}
+	routesRewrite := []string{}
 	natsServers := ""
 	isVerbose := false
 	fs.StringVar(&natsServers, "ns", "", "The nats server URLs (separated by comma)")
@@ -94,22 +94,16 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	fs.BoolVar(&rp.RouterOnly, "ro", false, "Router only mode, no NATS. http/https server will be launched")
 
 	// actual for airs-bp3 only
-	fs.StringSliceVar(&routerHostTargetsArr, "rht", []string{}, "reverse proxy </url-part-after-ip>=<target> mapping")
-	fs.StringSliceVar(&routerHostTargetsRewriteArr, "rhtr", []string{}, "reverse proxy </url-part-after-ip>=<target> rewritting mapping")
+	fs.StringSliceVar(&routes, "rht", []string{}, "reverse proxy </url-part-after-ip>=<target> mapping")
+	fs.StringSliceVar(&routesRewrite, "rhtr", []string{}, "reverse proxy </url-part-after-ip>=<target> rewritting mapping")
 	fs.StringVar(&rp.HTTP01ChallengeHost, "rch", "", "HTTP-01 Challenge host for let's encrypt service. Must be specified if router-port is 443, ignored otherwise")
-	fs.StringVar(&rp.HostTargetDefault, "rhtd", "", "url to be redirected to if url is unknown")
+	fs.StringVar(&rp.RouteDefault, "rhtd", "", "url to be redirected to if url is unknown")
 	fs.StringVar(&rp.CertDir, "rcd", ".", "SSL certificates dir")
 
 	fs.Parse(os.Args[1:])
 	rp.NATSServers.Set(natsServers)
-	for _, rht := range routerHostTargetsArr {
-		hostTarget := strings.Split(rht, "=")
-		rp.ReverseProxyMapping[hostTarget[0]] = hostTarget[1]
-	}
-	for _, rhtr := range routerHostTargetsRewriteArr {
-		hostTargetRewrite := strings.Split(rhtr, "=")
-		rp.ReverseProxyRewriteMapping[hostTargetRewrite[0]] = hostTargetRewrite[1]
-	}
+	ParseRoutes(routes, rp.Routes)
+	ParseRoutes(routesRewrite, rp.RoutesRewrite)
 	if isVerbose {
 		logger.SetLogLevel(logger.LogLevelDebug)
 	}
@@ -141,18 +135,16 @@ func (s *httpService) Prepare(work interface{}) (err error) {
 		return err
 	}
 
-	if len(s.HostTargetDefault) > 0 {
-		hostTargetDefaultURL, err := url.Parse(s.HostTargetDefault)
+	if len(s.RouteDefault) > 0 {
+		routeDefaultURL, err := url.Parse(s.RouteDefault)
 		if err != nil {
-			return fmt.Errorf("host target default target url %s parse failed: %w", s.HostTargetDefault, err)
+			return fmt.Errorf("route default url %s parse failed: %w", s.RouteDefault, err)
 		}
-		rp := createReverseProxy(hostTargetDefaultURL, "", hostTargetDefaultURL)
+		rp := createReverseProxy(routeDefaultURL, "", routeDefaultURL)
 		var handler http.Handler
 		if logger.IsDebug() {
 			handler = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				if logger.IsDebug() {
-					logger.Debug(fmt.Sprintf("reverse proxy: incoming %s %s%s", req.Method, req.Host, req.URL))
-				}
+				logger.Debug(fmt.Sprintf("reverse proxy: incoming %s %s%s", req.Method, req.Host, req.URL))
 				rp.ServeHTTP(rw, req)
 			})
 		} else {
@@ -208,28 +200,28 @@ func (s *httpService) registerHandlers() {
 		Methods("POST", "PATCH", "OPTIONS").Headers()
 }
 
-func (s *httpService) registerReverseProxy(m map[string]string, isRewrite bool) error {
-	for host, target := range m {
-		remoteUrl, err := url.Parse(target)
+func (s *httpService) registerReverseProxy(routes map[string]string, isRewrite bool) error {
+	for from, to := range routes {
+		toURL, err := url.Parse(to)
 		if err != nil {
-			return fmt.Errorf("target url %s parse failed: %w", target, err)
+			return fmt.Errorf("target url %s parse failed: %w", to, err)
 		}
 		toBiteOut := ""
 		if isRewrite {
-			toBiteOut = host
+			toBiteOut = from
 		}
-		s.reverseProxy.hostProxy[host] = createReverseProxy(remoteUrl, toBiteOut, remoteUrl)
-		s.router.PathPrefix(host).Handler(s.reverseProxy)
-		log.Printf("reverse proxy route registered: %s -> %s\n", host, target)
+		s.reverseProxy.hostProxy[from] = createReverseProxy(toURL, toBiteOut, toURL)
+		s.router.PathPrefix(from).Handler(s.reverseProxy)
+		log.Printf("reverse proxy route registered: %s -> %s\n", from, to)
 	}
 	return nil
 }
 
 func (s *httpService) registerReverseProxyHandlers() (err error) {
-	if err = s.registerReverseProxy(s.ReverseProxyMapping, false); err != nil {
+	if err = s.registerReverseProxy(s.Routes, false); err != nil {
 		return err
 	}
-	return s.registerReverseProxy(s.ReverseProxyRewriteMapping, true)
+	return s.registerReverseProxy(s.RoutesRewrite, true)
 }
 
 // pipeline.IService
@@ -269,9 +261,9 @@ func createReverseProxy(remote *url.URL, toBiteOut string, toPrepend *url.URL) *
 	targetQuery := remote.RawQuery
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
-			// если --router-host-target /grafana=http://10.0.0.3:3000 то https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
-			// если --router-host-target-rewrite /grafana=http://10.0.0.3:3000 то https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/foo
-			// если --router-host-target-default http://10.0.0.3:3000/not-found то https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
+			// default route: http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
+			// route        : /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
+			// route rewrite: /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
 			newPath := req.URL.Path
 			if len(toBiteOut) > 0 {
 				newPath = strings.Replace(req.URL.Path, toBiteOut, "", 1)

@@ -26,11 +26,11 @@ type RouterParams struct {
 	RouterOnly       bool
 
 	// used in airs-bp3 only
-	HTTP01ChallengeHost        string
-	CertDir                    string
-	HostTargetDefault          string
-	ReverseProxyMapping        map[string]string // used for register path in multiplexer, e.g. "/metric":"http://192.168.1.1:8080" is redirection to http://192.168.1.1:8080/metric
-	ReverseProxyRewriteMapping map[string]string // same as ReverseProxyMapping but "bites out" the key i.e. "/metric":"http://192.168.1.1:8080" is redirection to http://192.168.1.1:8080
+	HTTP01ChallengeHost string
+	CertDir             string
+	RouteDefault        string            // http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
+	Routes              map[string]string // /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
+	RoutesRewrite       map[string]string // /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
 }
 
 type reverseProxyHandler struct {
