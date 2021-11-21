@@ -22,6 +22,7 @@ import (
 	"github.com/gorilla/mux"
 	logger "github.com/heeus/core-logger"
 	flag "github.com/spf13/pflag"
+	"github.com/valyala/bytebufferpool"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
 )
@@ -30,10 +31,7 @@ import (
 func Provide(ctx context.Context, rp RouterParams) []interface{} {
 	httpService := httpService{
 		RouterParams: rp,
-		reverseProxy: &reverseProxyHandler{
-			map[string]*httputil.ReverseProxy{},
-		},
-		queues: rp.QueuesPartitions,
+		queues:       rp.QueuesPartitions,
 	}
 	if rp.Port != HTTPSPort {
 		return []interface{}{&httpService}
@@ -91,7 +89,7 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	fs.IntVar(&rp.ReadTimeout, "rt", DefaultRouterReadTimeout, "Read timeout in seconds")
 	fs.IntVar(&rp.ConnectionsLimit, "cl", DefaultRouterConnectionsLimit, "Limit of incoming connections")
 	fs.BoolVar(&rp.Verbose, "v", false, "verbose, log raw NATS traffic")
-	fs.BoolVar(&rp.RouterOnly, "ro", false, "Router only mode, no NATS. http/https server will be launched")
+	fs.BoolVar(&rp.RouterOnly, "ro", false, "Router only mode, no NATS connection")
 
 	// actual for airs-bp3 only
 	fs.StringSliceVar(&routes, "rht", []string{}, "reverse proxy </url-part-after-ip>=<target> mapping")
@@ -130,27 +128,8 @@ func (s *httpsService) Run(ctx context.Context) {
 func (s *httpService) Prepare(work interface{}) (err error) {
 	s.router = mux.NewRouter()
 
-	s.registerHandlers()
-	if err = s.registerReverseProxyHandlers(); err != nil {
+	if err = s.registerHandlers(); err != nil {
 		return err
-	}
-
-	if len(s.RouteDefault) > 0 {
-		routeDefaultURL, err := url.Parse(s.RouteDefault)
-		if err != nil {
-			return fmt.Errorf("route default url %s parse failed: %w", s.RouteDefault, err)
-		}
-		rp := createReverseProxy(routeDefaultURL, "", routeDefaultURL)
-		var handler http.Handler
-		if logger.IsDebug() {
-			handler = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				logger.Debug(fmt.Sprintf("reverse proxy: incoming %s %s%s", req.Method, req.Host, req.URL))
-				rp.ServeHTTP(rw, req)
-			})
-		} else {
-			handler = rp
-		}
-		s.router.NotFoundHandler = handler
 	}
 
 	port := strconv.Itoa(s.RouterParams.Port)
@@ -190,38 +169,111 @@ func (s *httpService) Stop() {
 	}
 }
 
-func (s *httpService) registerHandlers() {
-	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS")
-	s.router.HandleFunc("/api", corsHandler(queueNamesHandler()))
-	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}", queueAliasVar, wSIDVar), corsHandler(partitionHandler(s.queues))).
-		Methods("POST", "OPTIONS")
-	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
-		wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
-		Methods("POST", "PATCH", "OPTIONS").Headers()
-}
-
-func (s *httpService) registerReverseProxy(routes map[string]string, isRewrite bool) error {
+func getReverseProxyURLs(routesURLs map[string]t, routes map[string]string, isRewrite bool) error {
 	for from, to := range routes {
-		toURL, err := url.Parse(to)
+		if !strings.HasPrefix(from, "/") {
+			return fmt.Errorf("%s reverse proxy url must have trailing slash", from)
+		}
+		targetURL, err := parseURL(to)
 		if err != nil {
-			return fmt.Errorf("target url %s parse failed: %w", to, err)
+			return err
 		}
-		toBiteOut := ""
-		if isRewrite {
-			toBiteOut = from
+		routesURLs[from] = t{
+			targetURL,
+			isRewrite,
 		}
-		s.reverseProxy.hostProxy[from] = createReverseProxy(toURL, toBiteOut, toURL)
-		s.router.PathPrefix(from).Handler(s.reverseProxy)
-		log.Printf("reverse proxy route registered: %s -> %s\n", from, to)
+		logger.Info("reverse proxy route registered: ", from, " -> ", to)
 	}
 	return nil
 }
 
-func (s *httpService) registerReverseProxyHandlers() (err error) {
-	if err = s.registerReverseProxy(s.Routes, false); err != nil {
+func (s *httpService) registerHandlers() (err error) {
+	routesURLs := map[string]t{}
+	proxy := &httputil.ReverseProxy{Director: func(r *http.Request) {}}
+
+	if err = getReverseProxyURLs(routesURLs, s.Routes, false); err != nil {
+
 		return err
 	}
-	return s.registerReverseProxy(s.RoutesRewrite, true)
+	if err = getReverseProxyURLs(routesURLs, s.RoutesRewrite, true); err != nil {
+		return err
+	}
+	var notFoundURL *url.URL
+	if len(s.RouteDefault) > 0 {
+		if notFoundURL, err = parseURL(s.RouteDefault); err != nil {
+			return err
+		}
+		logger.Info("not found handler registered: ", s.RouteDefault)
+	}
+	s.router.MatcherFunc(func(req *http.Request, rm *mux.RouteMatch) bool {
+		pathPrefix := bytebufferpool.Get()
+		defer bytebufferpool.Put(pathPrefix)
+		// route        : /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
+		// route rewrite: /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
+		// default route: http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
+		pathParts := strings.Split(req.URL.Path, "/")
+		for _, pathPart := range pathParts[1:] { // ignore first empty path part. URL must have a trailing slash (already checked)
+			pathPrefix.WriteString("/")
+			pathPrefix.WriteString(pathPart)
+			toData, ok := routesURLs[pathPrefix.String()]
+			if !ok {
+				continue
+			}
+			targetPath := req.URL.Path
+			if toData.isRewrite {
+				targetPath = strings.Replace(req.URL.Path, pathPrefix.String(), toData.targetURL.Path, 1)
+			}
+			redirect(req, targetPath, toData.targetURL)
+			rm.Handler = proxy
+			return true
+		}
+		if notFoundURL != nil {
+			// no match -> not found handler
+			targetPath := notFoundURL.Path + req.URL.Path
+			redirect(req, targetPath, notFoundURL)
+			rm.Handler = proxy
+			if logger.IsDebug() {
+				logger.Debug(fmt.Sprintf("reverse proxy (not found handler): incoming %s %s%s", req.Method, req.Host, req.URL))
+			}
+			return true
+		}
+		return false
+	}).Name("reverse proxy")
+	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS").Name("router check")
+	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("app names")
+	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
+		wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
+		Methods("POST", "PATCH", "OPTIONS").Name("api")
+	return nil
+}
+
+type t struct {
+	targetURL *url.URL
+	isRewrite bool
+}
+
+func parseURL(urlStr string) (url *url.URL, err error) {
+	url, err = url.Parse(urlStr)
+	if err != nil {
+		err = fmt.Errorf("target url %s parse failed: %w", urlStr, err)
+	}
+	return
+}
+
+func redirect(req *http.Request, targetPath string, targetURL *url.URL) {
+	if logger.IsDebug() {
+		logger.Debug(fmt.Sprintf("reverse proxy: incoming %s %s%s, redirecting to %s%s", req.Method, req.Host, req.URL, targetURL.Host, targetPath))
+	}
+	req.URL.Path = targetPath
+	req.Host = targetURL.Host
+	req.URL.Scheme = targetURL.Scheme
+	req.URL.Host = targetURL.Host
+	targetQuery := targetURL.RawQuery
+	if targetQuery == "" || req.URL.RawQuery == "" {
+		req.URL.RawQuery = targetQuery + req.URL.RawQuery
+	} else {
+		req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
+	}
 }
 
 // pipeline.IService
@@ -244,46 +296,4 @@ func (s *acmeService) Stop() {
 	if err := s.Shutdown(s.ctx); err != nil {
 		s.Close()
 	}
-}
-func (p *reverseProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	s := strings.FieldsFunc(req.URL.Path, func(c rune) bool { return c == '/' })
-	for i := 0; i < len(s); i++ {
-		path := "/" + strings.Join(s[0:len(s)-i], "/")
-		proxy, ok := p.hostProxy[path]
-		if ok {
-			proxy.ServeHTTP(res, req)
-			break
-		}
-	}
-}
-
-func createReverseProxy(remote *url.URL, toBiteOut string, toPrepend *url.URL) *httputil.ReverseProxy {
-	targetQuery := remote.RawQuery
-	proxy := &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
-			// default route: http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
-			// route        : /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
-			// route rewrite: /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
-			newPath := req.URL.Path
-			if len(toBiteOut) > 0 {
-				newPath = strings.Replace(req.URL.Path, toBiteOut, "", 1)
-			}
-			if toPrepend != nil {
-				newPath = toPrepend.Path + newPath
-			}
-			if logger.IsDebug() {
-				logger.Debug(fmt.Sprintf("reverse proxy: incoming %s %s%s, redirecting to %s%s", req.Method, req.Host, req.URL, remote.Host, newPath))
-			}
-			req.URL.Path = newPath
-			req.Host = remote.Host
-			req.URL.Scheme = remote.Scheme
-			req.URL.Host = remote.Host
-			if targetQuery == "" || req.URL.RawQuery == "" {
-				req.URL.RawQuery = targetQuery + req.URL.RawQuery
-			} else {
-				req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
-			}
-		},
-	}
-	return proxy
 }

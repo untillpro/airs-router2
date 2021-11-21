@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
 	"github.com/untillpro/godif"
 	"github.com/untillpro/godif/services"
@@ -51,36 +50,6 @@ func TestQueueNames(t *testing.T) {
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
 	require.Nil(t, err)
 	require.Equal(t, `["airs-bp"]`, string(respBodyBytes))
-	expectOKRespPlainText(t, resp)
-}
-
-func TestNoResource(t *testing.T) {
-	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
-		require.Empty(t, request.Resource)
-		resp := ibus.CreateResponse(http.StatusOK, "ok")
-		resp.ContentType = "text/plain"
-		ibus.SendResponse(ctx, sender, resp)
-	})
-	godif.Require(&ibus.RequestHandler)
-	godif.Require(&ibus.SendResponse)
-	services.SetVerbose(false)
-	airsBPPartitionsAmount = 1
-	ibusnats.DeclareEmbeddedNATSServer()
-	initialArgs = os.Args
-	os.Args = []string{"appPath"}
-	Declare(context.Background(), "airs-bp")
-	var err error
-	ctx, err = services.ResolveAndStart()
-	require.Nil(t, err, err)
-	defer tearDown()
-
-	bodyReader := bytes.NewReader(nil)
-	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1", "application/json", bodyReader)
-	require.Nil(t, err, err)
-	defer resp.Body.Close()
-	respBodyBytes, err := ioutil.ReadAll(resp.Body)
-	require.Nil(t, err)
-	require.Equal(t, "ok", string(respBodyBytes))
 	expectOKRespPlainText(t, resp)
 }
 

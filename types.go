@@ -8,7 +8,6 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"net/http/httputil"
 
 	"github.com/gorilla/mux"
 	ibusnats "github.com/untillpro/airs-ibusnats"
@@ -33,16 +32,17 @@ type RouterParams struct {
 	RoutesRewrite       map[string]string // /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
 }
 
-type reverseProxyHandler struct {
-	hostProxy map[string]*httputil.ReverseProxy
-}
+type reverseProxyHandler http.HandlerFunc
+
+// type reverseProxyHandler struct {
+// 	hostProxy map[string]*httputil.ReverseProxy // key is path prefix
+// }
 
 type httpService struct {
 	RouterParams
 	router       *mux.Router
 	server       *http.Server
 	listener     net.Listener
-	reverseProxy *reverseProxyHandler
 	ctx          context.Context
 	queues       ibusnats.QueuesPartitionsMap
 }
