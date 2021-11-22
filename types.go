@@ -22,7 +22,6 @@ type RouterParams struct {
 	ConnectionsLimit int
 	Verbose          bool
 	QueuesPartitions ibusnats.QueuesPartitionsMap
-	RouterOnly       bool
 
 	// used in airs-bp3 only
 	HTTP01ChallengeHost string
@@ -32,19 +31,13 @@ type RouterParams struct {
 	RoutesRewrite       map[string]string // /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
 }
 
-type reverseProxyHandler http.HandlerFunc
-
-// type reverseProxyHandler struct {
-// 	hostProxy map[string]*httputil.ReverseProxy // key is path prefix
-// }
-
 type httpService struct {
 	RouterParams
-	router       *mux.Router
-	server       *http.Server
-	listener     net.Listener
-	ctx          context.Context
-	queues       ibusnats.QueuesPartitionsMap
+	router   *mux.Router
+	server   *http.Server
+	listener net.Listener
+	ctx      context.Context
+	queues   ibusnats.QueuesPartitionsMap
 }
 
 type httpsService struct {

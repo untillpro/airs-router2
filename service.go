@@ -39,7 +39,7 @@ func (s *Service) Start(ctx context.Context) (context.Context, error) {
 		}
 		go srv.Run(ctx)
 	}
-	if s.RouterOnly {
+	if len(s.NATSServers) == 0 {
 		log.Println("Router started in router-only mode")
 	} else {
 		log.Println("Router started")

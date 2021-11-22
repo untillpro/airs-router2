@@ -21,7 +21,7 @@ func DeclareEmbeddedRouter(routerSrv Service) {
 	}
 	queueNamesJSON, _ = json.Marshal(&queuesNames) // error impossible
 	godif.ProvideSliceElement(&services.Services, &routerSrv)
-	if !routerSrv.RouterOnly {
+	if len(routerSrv.NATSServers) > 0 {
 		godif.Require(&ibus.SendRequest2)
 	}
 }
@@ -34,7 +34,7 @@ func Declare(ctx context.Context, cqn ibusnats.CurrentQueueName) {
 	params := ProvideRouterParamsFromCmdLine()
 	params.QueuesPartitions = queues
 
-	if !params.RouterOnly {
+	if len(params.NATSServers) > 0 {
 		ibusnatsSrv := &ibusnats.Service{
 			NATSServers:      params.NATSServers,
 			Queues:           queues,

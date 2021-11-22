@@ -89,7 +89,6 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	fs.IntVar(&rp.ReadTimeout, "rt", DefaultRouterReadTimeout, "Read timeout in seconds")
 	fs.IntVar(&rp.ConnectionsLimit, "cl", DefaultRouterConnectionsLimit, "Limit of incoming connections")
 	fs.BoolVar(&rp.Verbose, "v", false, "verbose, log raw NATS traffic")
-	fs.BoolVar(&rp.RouterOnly, "ro", false, "Router only mode, no NATS connection")
 
 	// actual for airs-bp3 only
 	fs.StringSliceVar(&routes, "rht", []string{}, "reverse proxy </url-part-after-ip>=<target> mapping")
@@ -98,10 +97,16 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	fs.StringVar(&rp.RouteDefault, "rhtd", "", "url to be redirected to if url is unknown")
 	fs.StringVar(&rp.CertDir, "rcd", ".", "SSL certificates dir")
 
-	fs.Parse(os.Args[1:])
-	rp.NATSServers.Set(natsServers)
-	ParseRoutes(routes, rp.Routes)
-	ParseRoutes(routesRewrite, rp.RoutesRewrite)
+	_ = fs.Parse(os.Args[1:])           // os.Exit on error
+	if len(natsServers) > 0 {
+		_ = rp.NATSServers.Set(natsServers) // error impossible
+	}
+	if err := ParseRoutes(routes, rp.Routes); err != nil {
+		panic(err)
+	}
+	if err := ParseRoutes(routesRewrite, rp.RoutesRewrite); err != nil {
+		panic(err)
+	}
 	if isVerbose {
 		logger.SetLogLevel(logger.LogLevelDebug)
 	}
@@ -152,6 +157,7 @@ func (s *httpService) Prepare(work interface{}) (err error) {
 	return nil
 }
 
+// pipeline.IService
 func (s *httpService) Run(ctx context.Context) {
 	s.server.BaseContext = func(l net.Listener) context.Context {
 		return ctx // need to track both client disconnect and app finalize
@@ -162,6 +168,7 @@ func (s *httpService) Run(ctx context.Context) {
 	}
 }
 
+// pipeline.IService
 func (s *httpService) Stop() {
 	if err := s.server.Shutdown(s.ctx); err != nil {
 		s.listener.Close()
@@ -169,7 +176,7 @@ func (s *httpService) Stop() {
 	}
 }
 
-func getReverseProxyURLs(routesURLs map[string]t, routes map[string]string, isRewrite bool) error {
+func parseRoutes(routesURLs map[string]route, routes map[string]string, isRewrite bool) error {
 	for from, to := range routes {
 		if !strings.HasPrefix(from, "/") {
 			return fmt.Errorf("%s reverse proxy url must have trailing slash", from)
@@ -178,7 +185,7 @@ func getReverseProxyURLs(routesURLs map[string]t, routes map[string]string, isRe
 		if err != nil {
 			return err
 		}
-		routesURLs[from] = t{
+		routesURLs[from] = route{
 			targetURL,
 			isRewrite,
 		}
@@ -187,58 +194,66 @@ func getReverseProxyURLs(routesURLs map[string]t, routes map[string]string, isRe
 	return nil
 }
 
-func (s *httpService) registerHandlers() (err error) {
-	routesURLs := map[string]t{}
-	proxy := &httputil.ReverseProxy{Director: func(r *http.Request) {}}
-
-	if err = getReverseProxyURLs(routesURLs, s.Routes, false); err != nil {
-
-		return err
+// match reverse proxy urls, redirect and handle as reverse proxy
+// route        : /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
+// route rewrite: /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
+// default route: http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
+func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err error) {
+	routes := map[string]route{}
+	reverseProxy := &httputil.ReverseProxy{Director: func(r *http.Request) {}}
+	if err := parseRoutes(routes, s.Routes, false); err != nil {
+		return nil, err
 	}
-	if err = getReverseProxyURLs(routesURLs, s.RoutesRewrite, true); err != nil {
-		return err
+	if err = parseRoutes(routes, s.RoutesRewrite, true); err != nil {
+		return nil, err
 	}
-	var notFoundURL *url.URL
+	var defaultRouteURL *url.URL
 	if len(s.RouteDefault) > 0 {
-		if notFoundURL, err = parseURL(s.RouteDefault); err != nil {
-			return err
+		if defaultRouteURL, err = parseURL(s.RouteDefault); err != nil {
+			return nil, err
 		}
-		logger.Info("not found handler registered: ", s.RouteDefault)
+		logger.Info("default route registered: ", s.RouteDefault)
 	}
-	s.router.MatcherFunc(func(req *http.Request, rm *mux.RouteMatch) bool {
+	return func(req *http.Request, rm *mux.RouteMatch) bool {
 		pathPrefix := bytebufferpool.Get()
 		defer bytebufferpool.Put(pathPrefix)
-		// route        : /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
-		// route rewrite: /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
-		// default route: http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
+
 		pathParts := strings.Split(req.URL.Path, "/")
 		for _, pathPart := range pathParts[1:] { // ignore first empty path part. URL must have a trailing slash (already checked)
-			pathPrefix.WriteString("/")
-			pathPrefix.WriteString(pathPart)
-			toData, ok := routesURLs[pathPrefix.String()]
+			_, _ = pathPrefix.WriteString("/")      // error impossible
+			_, _ = pathPrefix.WriteString(pathPart) // error impossible
+			route, ok := routes[pathPrefix.String()]
 			if !ok {
 				continue
 			}
 			targetPath := req.URL.Path
-			if toData.isRewrite {
-				targetPath = strings.Replace(req.URL.Path, pathPrefix.String(), toData.targetURL.Path, 1)
+			if route.isRewrite {
+				targetPath = strings.Replace(req.URL.Path, pathPrefix.String(), route.targetURL.Path, 1)
 			}
-			redirect(req, targetPath, toData.targetURL)
-			rm.Handler = proxy
+			redirect(req, targetPath, route.targetURL)
+			rm.Handler = reverseProxy
 			return true
 		}
-		if notFoundURL != nil {
-			// no match -> not found handler
-			targetPath := notFoundURL.Path + req.URL.Path
-			redirect(req, targetPath, notFoundURL)
-			rm.Handler = proxy
+		if defaultRouteURL != nil {
+			// no match -> redirect to default route if specified
+			targetPath := defaultRouteURL.Path + req.URL.Path
+			redirect(req, targetPath, defaultRouteURL)
+			rm.Handler = reverseProxy
 			if logger.IsDebug() {
 				logger.Debug(fmt.Sprintf("reverse proxy (not found handler): incoming %s %s%s", req.Method, req.Host, req.URL))
 			}
 			return true
 		}
 		return false
-	}).Name("reverse proxy")
+	}, nil
+}
+
+func (s *httpService) registerHandlers() (err error) {
+	redirectMatcher, err := s.getRedirectMatcher()
+	if err != nil {
+		return err
+	}
+	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
 	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS").Name("router check")
 	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("app names")
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
@@ -247,7 +262,7 @@ func (s *httpService) registerHandlers() (err error) {
 	return nil
 }
 
-type t struct {
+type route struct {
 	targetURL *url.URL
 	isRewrite bool
 }
@@ -281,6 +296,7 @@ func (s *acmeService) Prepare(work interface{}) error {
 	return nil
 }
 
+// pipeline.IService
 func (s *acmeService) Run(ctx context.Context) {
 	s.BaseContext = func(l net.Listener) context.Context {
 		return ctx // need to track both client disconnect and app finalize
@@ -292,6 +308,7 @@ func (s *acmeService) Run(ctx context.Context) {
 	}
 }
 
+// pipeline.IService
 func (s *acmeService) Stop() {
 	if err := s.Shutdown(s.ctx); err != nil {
 		s.Close()

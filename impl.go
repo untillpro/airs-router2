@@ -218,16 +218,16 @@ func setContentType(resp http.ResponseWriter, cType string) {
 func writeSectionHeader(w http.ResponseWriter, sec ibus.IDataSection) bool {
 	buf := bytebufferpool.Get()
 	defer bytebufferpool.Put(buf)
-	buf.WriteString(fmt.Sprintf(`{"type":%q`, sec.Type()))
+	_, _ = buf.WriteString(fmt.Sprintf(`{"type":%q`, sec.Type())) // error impossible
 	if len(sec.Path()) > 0 {
-		buf.WriteString(`,"path":[`)
+		_, _ = buf.WriteString(`,"path":[`) // error impossible
 		for i, p := range sec.Path() {
 			if i > 0 {
-				buf.WriteString(",")
+				_, _ = buf.WriteString(",") // error impossible
 			}
-			buf.WriteString(fmt.Sprintf(`%q`, p))
+			_, _ = buf.WriteString(fmt.Sprintf(`%q`, p)) // error impossible
 		}
-		buf.WriteString("]")
+		_, _ = buf.WriteString("]") // error impossible
 	}
 	if !writeResponse(w, string(buf.Bytes())) {
 		return false
