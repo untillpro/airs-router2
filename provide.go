@@ -97,7 +97,7 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	fs.StringVar(&rp.RouteDefault, "rhtd", "", "url to be redirected to if url is unknown")
 	fs.StringVar(&rp.CertDir, "rcd", ".", "SSL certificates dir")
 
-	_ = fs.Parse(os.Args[1:])           // os.Exit on error
+	_ = fs.Parse(os.Args[1:]) // os.Exit on error
 	if len(natsServers) > 0 {
 		_ = rp.NATSServers.Set(natsServers) // error impossible
 	}
@@ -239,9 +239,6 @@ func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err
 			targetPath := defaultRouteURL.Path + req.URL.Path
 			redirect(req, targetPath, defaultRouteURL)
 			rm.Handler = reverseProxy
-			if logger.IsDebug() {
-				logger.Debug(fmt.Sprintf("reverse proxy (not found handler): incoming %s %s%s", req.Method, req.Host, req.URL))
-			}
 			return true
 		}
 		return false
