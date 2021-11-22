@@ -13,8 +13,6 @@ import (
 
 // Service s.e.
 // if Service use port 443, it will be started safely with TLS and use Lets Encrypt certificate
-// ReverseProxy create handlers for access to service inside security perimeter
-// AllowedHost is needed for hostPolicy function, that controls for which domain the Manager will attempt to retrieve new certificates
 type Service struct {
 	RouterParams
 	QueuePartitions ibusnats.QueuesPartitionsMap

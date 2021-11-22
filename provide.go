@@ -179,7 +179,7 @@ func (s *httpService) Stop() {
 func parseRoutes(routesURLs map[string]route, routes map[string]string, isRewrite bool) error {
 	for from, to := range routes {
 		if !strings.HasPrefix(from, "/") {
-			return fmt.Errorf("%s reverse proxy url must have trailing slash", from)
+			return fmt.Errorf("%s reverse proxy url must have leading slash", from)
 		}
 		targetURL, err := parseURL(to)
 		if err != nil {
@@ -200,7 +200,7 @@ func parseRoutes(routesURLs map[string]route, routes map[string]string, isRewrit
 // default route: http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
 func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err error) {
 	routes := map[string]route{}
-	reverseProxy := &httputil.ReverseProxy{Director: func(r *http.Request) {}}
+	reverseProxy := &httputil.ReverseProxy{Director: func(r *http.Request) {}} // director's job is done by redirectMatcher
 	if err := parseRoutes(routes, s.Routes, false); err != nil {
 		return nil, err
 	}
@@ -228,6 +228,7 @@ func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err
 			}
 			targetPath := req.URL.Path
 			if route.isRewrite {
+				// /grafana-rewrite/foo -> /rewritten/foo
 				targetPath = strings.Replace(req.URL.Path, pathPrefix.String(), route.targetURL.Path, 1)
 			}
 			redirect(req, targetPath, route.targetURL)
