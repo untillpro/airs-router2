@@ -179,7 +179,7 @@ func (s *httpService) Stop() {
 func parseRoutes(routesURLs map[string]route, routes map[string]string, isRewrite bool) error {
 	for from, to := range routes {
 		if !strings.HasPrefix(from, "/") {
-			return fmt.Errorf("%s reverse proxy url must have leading slash", from)
+			return fmt.Errorf("%s reverse proxy url must have a leading slash", from)
 		}
 		targetURL, err := parseURL(to)
 		if err != nil {
@@ -251,12 +251,12 @@ func (s *httpService) registerHandlers() (err error) {
 	if err != nil {
 		return err
 	}
-	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
 	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS").Name("router check")
 	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("app names")
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
 		wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
 		Methods("POST", "PATCH", "OPTIONS").Name("api")
+	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
 	return nil
 }
 
