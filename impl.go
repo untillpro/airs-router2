@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	logger "github.com/heeus/core-logger"
 	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
 	"github.com/valyala/bytebufferpool"
@@ -41,6 +42,9 @@ var (
 
 func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
+		if logger.IsDebug() {
+			logger.Debug("serving ", req.Method, " ", req.URL.Path)
+		}
 		vars := mux.Vars(req)
 		numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
 		queueRequest, err := createRequest(req.Method, req)
