@@ -22,17 +22,23 @@ import (
 	"github.com/gorilla/mux"
 	logger "github.com/heeus/core-logger"
 	flag "github.com/spf13/pflag"
+	ibus "github.com/untillpro/airs-ibus"
 	"github.com/valyala/bytebufferpool"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
 )
 
-// http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
 func Provide(ctx context.Context, rp RouterParams) []interface{} {
+	return ProvideWithBusTimeout(ctx, rp, ibus.DefaultTimeout)
+}
+
+// http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
+func ProvideWithBusTimeout(ctx context.Context, rp RouterParams, aBusTimeout time.Duration) []interface{} {
 	httpService := httpService{
 		RouterParams: rp,
 		queues:       rp.QueuesPartitions,
 	}
+	busTimeout = aBusTimeout
 	if rp.Port != HTTPSPort {
 		return []interface{}{&httpService}
 	}
