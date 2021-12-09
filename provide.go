@@ -8,9 +8,10 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"io/ioutil"
+
 	in10n "github.com/heeus/core-in10n"
 	istructs "github.com/heeus/core-istructs"
-	"io/ioutil"
 
 	"fmt"
 	"log"
@@ -406,17 +407,15 @@ func (s *httpService) subscribeAndWatchHandler(ctx context.Context) http.Handler
 			ch <- unit
 		})
 		for ctx.Err() == nil {
-			select {
-			case result := <-ch:
-				json, err := json.Marshal(&result)
-				if err == nil {
-					if _, err = rw.Write(append(json, '\n')); err != nil {
-						log.Println("failed to write projection update to client:", err)
-						http.Error(rw, "failed to write projection update to client", http.StatusInternalServerError)
-						return
-					}
-					flusher.Flush()
+			result := <-ch
+			json, err := json.Marshal(&result)
+			if err == nil {
+				if _, err = rw.Write(append(json, '\n')); err != nil {
+					log.Println("failed to write projection update to client:", err)
+					http.Error(rw, "failed to write projection update to client", http.StatusInternalServerError)
+					return
 				}
+				flusher.Flush()
 			}
 		}
 
@@ -424,6 +423,7 @@ func (s *httpService) subscribeAndWatchHandler(ctx context.Context) http.Handler
 }
 
 // curl -X POST "http://localhost:3001/n10n/update" -H "Content-Type: application/json" -d "{\"App\":\"Application\",\"Projection\":\"paa.price\",\"WS\":1}"
+// TODO: eliminate after airs-bp3 integration tests implementation
 func (s *httpService) updateHandler() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		var p in10n.ProjectionKey
