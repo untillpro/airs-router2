@@ -59,15 +59,8 @@ type UpdateUnit struct {
 	Offset     istructs.Offset
 }
 
-// For compatibility with json, int64 not correct unmarshall
-type projectionKey struct {
-	App        istructs.AppName
-	Projection istructs.QName
-	WS         string
-}
-
 // subscriber struct
 type channelStruct struct {
 	Channel       in10n.ChannelID
-	ProjectionKey projectionKey
+	ProjectionKey in10n.ProjectionKey
 }
