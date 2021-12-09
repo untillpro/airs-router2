@@ -272,7 +272,7 @@ func (s *httpService) registerHandlers() (err error) {
 	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
 
 	s.router.Handle("/n10n/channel", s.newChannelHandler())
-	s.router.Handle("/n10n/subscribe", s.subscribeAndWatchHandler(s.ctx))
+	s.router.Handle("/n10n/subscribe", s.subscribeAndWatchHandler())
 	s.router.Handle("/n10n/update/{offset:[0-9]{1,10}}", s.updateHandler())
 
 	return nil
@@ -368,7 +368,7 @@ func (s *httpService) newChannelHandler() http.HandlerFunc {
 }
 
 // curl -X POST "http://localhost:3001/n10n/subscribe" -H "Content-Type: application/json" -d "{\"channel\": \"c9ce4147-f78f-4e2e-83f5-38ad53890a9e\", \"projectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.price\",\"WS\":1}}"
-func (s *httpService) subscribeAndWatchHandler(ctx context.Context) http.HandlerFunc {
+func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		var payload channelStruct
 		rw.Header().Set("Content-Type", "text/event-stream")
@@ -399,14 +399,16 @@ func (s *httpService) subscribeAndWatchHandler(ctx context.Context) http.Handler
 			return
 		}
 		ch := make(chan UpdateUnit)
-		go s.n10n.WatchChannel(ctx, channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
+		go s.n10n.WatchChannel(req.Context(), channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
 			var unit = UpdateUnit{
 				Projection: projection,
 				Offset:     offset,
 			}
 			ch <- unit
 		})
-		for ctx.Err() == nil {
+		rw.WriteHeader(http.StatusOK)
+		flusher.Flush()
+		for req.Context().Err() == nil {
 			result := <-ch
 			json, err := json.Marshal(&result)
 			if err == nil {
