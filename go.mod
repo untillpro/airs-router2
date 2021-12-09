@@ -16,6 +16,8 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/heeus/core-in10n v0.0.0-20211101131415-82e815d039a3
+	github.com/heeus/core-in10nmem v0.0.0-20211106113908-aa5cc7ba2b44
 	github.com/heeus/core-logger v0.0.0-20211015110533-1499b5b04842
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/minio/highwayhash v1.0.2 // indirect
@@ -30,4 +32,10 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+)
+
+require (
+	github.com/google/uuid v1.3.0 // indirect
+	github.com/heeus/core-istructs v0.0.0-20211101103807-183a1e220686 // indirect
+	github.com/heeus/core-pipeline v0.0.0-20211030144138-52b255abb277 // indirect
 )
