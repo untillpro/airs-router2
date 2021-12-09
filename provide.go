@@ -7,6 +7,11 @@ package router2
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
+	in10n "github.com/heeus/core-in10n"
+	in10nmem "github.com/heeus/core-in10nmem"
+	istructs "github.com/heeus/core-istructs"
+	"io/ioutil"
 
 	"fmt"
 	"log"
@@ -34,9 +39,17 @@ func Provide(ctx context.Context, rp RouterParams) []interface{} {
 
 // http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
 func ProvideWithBusTimeout(ctx context.Context, rp RouterParams, aBusTimeout time.Duration) []interface{} {
+	quotas := in10n.Quotas{
+		Channels:               10000,
+		ChannelsPerSubject:     10,
+		Subsciptions:           100000,
+		SubsciptionsPerSubject: 100,
+	}
+	broker, _ := in10nmem.Provide(quotas)
 	httpService := httpService{
 		RouterParams: rp,
 		queues:       rp.QueuesPartitions,
+		n10n:         broker,
 	}
 	busTimeout = aBusTimeout
 	if rp.Port != HTTPSPort {
@@ -56,6 +69,7 @@ func ProvideWithBusTimeout(ctx context.Context, rp RouterParams, aBusTimeout tim
 		HostPolicy: autocert.HostWhitelist(rp.HTTP01ChallengeHost),
 		Cache:      autocert.DirCache(rp.CertDir),
 	}
+
 	httpsService := &httpsService{
 		httpService: httpService,
 		crtMgr:      crtMgr,
@@ -263,6 +277,11 @@ func (s *httpService) registerHandlers() (err error) {
 		wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
 		Methods("POST", "PATCH", "OPTIONS").Name("api")
 	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
+
+	s.router.Handle("/n10n/channel", s.newChannelHandler())
+	s.router.Handle("/n10n/subscribe", s.subscribeAndWatchHandler(s.ctx))
+	s.router.Handle("/n10n/update/{offset:[0-9]{1,10}}", s.updateHandler())
+
 	return nil
 }
 
@@ -316,5 +335,109 @@ func (s *acmeService) Run(ctx context.Context) {
 func (s *acmeService) Stop() {
 	if err := s.Shutdown(s.ctx); err != nil {
 		s.Close()
+	}
+}
+
+func (s *httpService) newChannelHandler() http.HandlerFunc {
+	return func(resp http.ResponseWriter, req *http.Request) {
+		body, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			log.Println(err)
+			http.Error(resp, "Error when read request body", http.StatusInternalServerError)
+			return
+		}
+		var p map[string]string
+		json.Unmarshal(body, &p)
+		subjectLogin, ok := p["SubjectLogin"]
+		if !ok {
+			log.Println("For create channel you must use SubjectLogin:", err)
+			http.Error(resp, "For create channel you must use SubjectLogin!", http.StatusForbidden)
+			return
+		}
+		channel, err := s.n10n.NewChannel(istructs.SubjectLogin(subjectLogin), 24*time.Hour)
+		if _, err = resp.Write([]byte(channel)); err != nil {
+			log.Println("failed to write channel id to  response:", err)
+			http.Error(resp, "Failed to write channel id to response!", http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func (s *httpService) subscribeAndWatchHandler(ctx context.Context) http.HandlerFunc {
+	return func(rw http.ResponseWriter, req *http.Request) {
+		var payload channelStruct
+		rw.Header().Set("Content-Type", "text/event-stream")
+		rw.Header().Set("Cache-Control", "no-cache")
+		rw.Header().Set("Connection", "keep-alive")
+		body, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			log.Println(err)
+			http.Error(rw, "Error read channel id and projections key data for subscribe!", http.StatusInternalServerError)
+			return
+		}
+		err = json.Unmarshal(body, &payload)
+		channel := payload.Channel
+		flusher, ok := rw.(http.Flusher)
+		if !ok {
+			http.Error(rw, "Streaming unsupported!", http.StatusInternalServerError)
+			return
+		}
+		err = s.n10n.Subscribe(channel, castProjectionKey(payload.ProjectionKey))
+		if err != nil {
+			log.Println(err)
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		ch := make(chan UpdateUnit)
+		go s.n10n.WatchChannel(ctx, channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
+			var unit = UpdateUnit{
+				Projection: projection,
+				Offset:     offset,
+			}
+			ch <- unit
+		})
+		for ctx.Err() == nil {
+			select {
+			case result := <-ch:
+				json, err := json.Marshal(&result)
+				if err == nil {
+					if _, err = rw.Write(append(json, '\n')); err != nil {
+						log.Println("failed to write projection update to client:", err)
+						http.Error(rw, "failed to write projection update to client", http.StatusInternalServerError)
+						return
+					}
+					flusher.Flush()
+				}
+			}
+		}
+
+	}
+}
+
+func (s *httpService) updateHandler() http.HandlerFunc {
+	return func(resp http.ResponseWriter, req *http.Request) {
+		var p projectionKey
+		body, err := ioutil.ReadAll(req.Body)
+		if err != nil {
+			log.Println(err)
+			http.Error(resp, "Error when read request body", http.StatusInternalServerError)
+			return
+		}
+		json.Unmarshal(body, &p)
+
+		params := mux.Vars(req)
+		offset := params["offset"]
+		if off, err := strconv.ParseInt(offset, 10, 64); err == nil {
+			s.n10n.Update(castProjectionKey(p), istructs.Offset(off))
+		}
+	}
+}
+
+func castProjectionKey(projection projectionKey) in10n.ProjectionKey {
+	wsid, _ := strconv.ParseInt(projection.WS, 10, 64)
+	return in10n.ProjectionKey{
+		App:        projection.App,
+		Projection: projection.Projection,
+		WS:         istructs.WSID(wsid),
 	}
 }

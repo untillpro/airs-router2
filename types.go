@@ -6,6 +6,8 @@ package router2
 
 import (
 	"context"
+	in10n "github.com/heeus/core-in10n"
+	istructs "github.com/heeus/core-istructs"
 	"net"
 	"net/http"
 
@@ -38,6 +40,7 @@ type httpService struct {
 	listener net.Listener
 	ctx      context.Context
 	queues   ibusnats.QueuesPartitionsMap
+	n10n     in10n.IN10nBroker
 }
 
 type httpsService struct {
@@ -48,4 +51,23 @@ type httpsService struct {
 type acmeService struct {
 	http.Server
 	ctx context.Context
+}
+
+// UpdateUnit TODO: DUPLICATE!!!! change in coew-in10nmem from updateUnit to UpdateUnit for correct marshal/unmarshal
+type UpdateUnit struct {
+	Projection in10n.ProjectionKey
+	Offset     istructs.Offset
+}
+
+// For compatibility with json, int64 not correct unmarshall
+type projectionKey struct {
+	App        istructs.AppName
+	Projection istructs.QName
+	WS         string
+}
+
+// subscriber struct
+type channelStruct struct {
+	Channel       in10n.ChannelID
+	ProjectionKey projectionKey
 }
