@@ -269,12 +269,12 @@ func (s *httpService) registerHandlers() (err error) {
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
 		wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
 		Methods("POST", "PATCH", "OPTIONS").Name("api")
-	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
-
 	s.router.Handle("/n10n/channel", s.newChannelHandler())
 	s.router.Handle("/n10n/subscribe", s.subscribeAndWatchHandler())
 	s.router.Handle("/n10n/update/{offset:[0-9]{1,10}}", s.updateHandler())
 
+	// must be the last handler
+	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
 	return nil
 }
 
