@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 
 	in10n "github.com/heeus/core-in10n"
@@ -269,8 +270,9 @@ func (s *httpService) registerHandlers() (err error) {
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
 		wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
 		Methods("POST", "PATCH", "OPTIONS").Name("api")
-	s.router.Handle("/n10n/channel", s.newChannelHandler())
-	s.router.Handle("/n10n/subscribe", s.subscribeAndWatchHandler())
+	s.router.Handle("/n10n/channel", s.subscribeAndWatchHandler(s.ctx))
+	s.router.Handle("/n10n/subscribe", s.subscribeHandler())
+	s.router.Handle("/n10n/unsubscribe", s.unSubscribeHandler())
 	s.router.Handle("/n10n/update/{offset:[0-9]{1,10}}", s.updateHandler())
 
 	// must be the last handler
@@ -331,93 +333,101 @@ func (s *acmeService) Stop() {
 	}
 }
 
-// curl -X POST "http://localhost:3001/n10n/channel" -H "Content-Type: application/json" -d "{\"SubjectLogin\": \"paa\"}"
-func (s *httpService) newChannelHandler() http.HandlerFunc {
-	return func(resp http.ResponseWriter, req *http.Request) {
-		body, err := ioutil.ReadAll(req.Body)
-		if err != nil {
-			log.Println(err)
-			http.Error(resp, "Error when read request body", http.StatusInternalServerError)
-			return
-		}
-		var p map[string]string
-		err = json.Unmarshal(body, &p)
-		if err != nil {
-			log.Println(err)
-			http.Error(resp, "Error when parse request body", http.StatusBadRequest)
-			return
-		}
-		subjectLogin, ok := p["SubjectLogin"]
-		if !ok {
-			log.Println("For create channel you must use SubjectLogin:", err)
-			http.Error(resp, "For create channel you must use SubjectLogin!", http.StatusForbidden)
-			return
-		}
-		channel, err := s.n10n.NewChannel(istructs.SubjectLogin(subjectLogin), 24*time.Hour)
-		if err != nil {
-			log.Println(err)
-			http.Error(resp, "Error create new channel", http.StatusTooManyRequests)
-			return
-		}
-		if _, err = resp.Write([]byte(channel)); err != nil {
-			log.Println("failed to write channel id to  response:", err)
-			http.Error(resp, "Failed to write channel id to response!", http.StatusInternalServerError)
-			return
-		}
-	}
-}
-
-// curl -X POST "http://localhost:3001/n10n/subscribe" -H "Content-Type: application/json" -d "{\"channel\": \"c9ce4147-f78f-4e2e-83f5-38ad53890a9e\", \"projectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.price\",\"WS\":1}}"
-func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
+/*
+curl -G --data-urlencode "payload={\"SubjectLogin\": \"paa\", \"projectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.price\",\"WS\":1}}" https://localhost:3001/n10n/channel -H "Content-Type: application/json"
+curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}}" https://localhost:3001/n10n/subscribe -H "Content-Type: application/json"
+curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}}" https://localhost:3001/n10n/unsubscribe -H "Content-Type: application/json"
+*/
+func (s *httpService) subscribeAndWatchHandler(ctx context.Context) http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
-		var payload channelStruct
+		var (
+			urlParams urlParamType
+			channel   in10n.ChannelID
+		)
+
 		rw.Header().Set("Content-Type", "text/event-stream")
 		rw.Header().Set("Cache-Control", "no-cache")
 		rw.Header().Set("Connection", "keep-alive")
-		body, err := ioutil.ReadAll(req.Body)
+
+		err := getJsonPayload(req, &urlParams)
 		if err != nil {
 			log.Println(err)
-			http.Error(rw, "Error read channel id and projections key data for subscribe!", http.StatusInternalServerError)
+			http.Error(rw, "Error read SubjectLogin and ProjectionKey data for subscribe and watch!", http.StatusBadRequest)
 			return
 		}
-		err = json.Unmarshal(body, &payload)
-		if err != nil {
-			log.Println(err)
-			http.Error(rw, "Error when parse request body", http.StatusBadRequest)
-			return
-		}
-		channel := payload.Channel
 		flusher, ok := rw.(http.Flusher)
 		if !ok {
 			http.Error(rw, "Streaming unsupported!", http.StatusInternalServerError)
 			return
 		}
-		err = s.n10n.Subscribe(channel, payload.ProjectionKey)
+		channel, err = s.n10n.NewChannel(urlParams.SubjectLogin, 24*time.Hour)
+		if err != nil {
+			log.Println(err)
+			http.Error(rw, "Error create new channel", http.StatusTooManyRequests)
+			return
+		}
+		if _, err = fmt.Fprintf(rw, "data: %s\n\n", channel); err != nil {
+			log.Println("failed to write created channel id to client:", err)
+			return
+		}
+		flusher.Flush()
+		err = nb.n10.Subscribe(channel, urlParams.ProjectionKey)
 		if err != nil {
 			log.Println(err)
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		ch := make(chan UpdateUnit)
-		go s.n10n.WatchChannel(req.Context(), channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
+		go s.n10n.WatchChannel(ctx, channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
 			var unit = UpdateUnit{
 				Projection: projection,
 				Offset:     offset,
 			}
 			ch <- unit
 		})
-		for req.Context().Err() == nil {
+		for ctx.Err() == nil {
 			result := <-ch
 			json, err := json.Marshal(&result)
 			if err == nil {
 				if _, err = fmt.Fprintf(rw, "data: %s\n\n", json); err != nil {
 					log.Println("failed to write projection update to client:", err)
-					return
 				}
 				flusher.Flush()
 			}
 		}
 
+	}
+}
+
+func (s *httpService) subscribeHandler() http.HandlerFunc {
+	return func(rw http.ResponseWriter, req *http.Request) {
+		var parameters urlParamType
+		err := getJsonPayload(req, &parameters)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+		}
+		err = s.n10n.Subscribe(parameters.Channel, parameters.ProjectionKey)
+		if err != nil {
+			log.Println(err)
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func (s *httpService) unSubscribeHandler() http.HandlerFunc {
+	return func(rw http.ResponseWriter, req *http.Request) {
+		var parameters urlParamType
+		err := getJsonPayload(req, &parameters)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+		}
+		err = s.n10n.Unsubscribe(parameters.Channel, parameters.ProjectionKey)
+		if err != nil {
+			log.Println(err)
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
@@ -445,4 +455,18 @@ func (s *httpService) updateHandler() http.HandlerFunc {
 			s.n10n.Update(p, istructs.Offset(off))
 		}
 	}
+}
+
+func getJsonPayload(req *http.Request, payload *urlParamType) (err error) {
+	jsonParam, ok := req.URL.Query()["payload"]
+	if !ok || len(jsonParam[0]) < 1 {
+		log.Println("Url parameter with payload (channel id and projection key) is missing.")
+		err = errors.New("Url parameter  with payload (channel id and projection key) is missing.")
+	}
+	err = json.Unmarshal([]byte(jsonParam[0]), payload)
+	if err != nil {
+		log.Println(err)
+		err = fmt.Errorf("cannot unmarshal input payload %w", err)
+	}
+	return err
 }
