@@ -371,7 +371,7 @@ func (s *httpService) subscribeAndWatchHandler(ctx context.Context) http.Handler
 			return
 		}
 		flusher.Flush()
-		err = nb.n10.Subscribe(channel, urlParams.ProjectionKey)
+		err = s.n10n.Subscribe(channel, urlParams.ProjectionKey)
 		if err != nil {
 			log.Println(err)
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
