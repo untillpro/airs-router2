@@ -461,12 +461,12 @@ func getJsonPayload(req *http.Request, payload *urlParamType) (err error) {
 	jsonParam, ok := req.URL.Query()["payload"]
 	if !ok || len(jsonParam[0]) < 1 {
 		log.Println("Url parameter with payload (channel id and projection key) is missing.")
-		err = errors.New("Url parameter  with payload (channel id and projection key) is missing.")
+		return errors.New("Url parameter  with payload (channel id and projection key) is missing.")
 	}
 	err = json.Unmarshal([]byte(jsonParam[0]), payload)
 	if err != nil {
 		log.Println(err)
-		err = fmt.Errorf("cannot unmarshal input payload %w", err)
+		return fmt.Errorf("cannot unmarshal input payload %w", err)
 	}
-	return err
+	return nil
 }
