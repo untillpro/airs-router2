@@ -59,8 +59,9 @@ type UpdateUnit struct {
 	Offset     istructs.Offset
 }
 
-// subscriber struct
-type channelStruct struct {
-	Channel       in10n.ChannelID
+// payload struct
+type urlParamType struct {
+	SubjectLogin  istructs.SubjectLogin
 	ProjectionKey in10n.ProjectionKey
+	Channel       in10n.ChannelID
 }
