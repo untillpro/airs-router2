@@ -412,7 +412,7 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			result := <-ch
 			json, err := json.Marshal(&result)
 			if err == nil {
-				if _, err = rw.Write(append(json, '\n')); err != nil {
+				if _, err = rw.Write(json); err != nil {
 					log.Println("failed to write projection update to client:", err)
 					http.Error(rw, "failed to write projection update to client", http.StatusInternalServerError)
 					return
