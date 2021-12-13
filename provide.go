@@ -406,15 +406,12 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			}
 			ch <- unit
 		})
-		rw.WriteHeader(http.StatusOK)
-		flusher.Flush()
 		for req.Context().Err() == nil {
 			result := <-ch
 			json, err := json.Marshal(&result)
 			if err == nil {
-				if _, err = rw.Write(append(json, '\n')); err != nil {
+				if _, err = fmt.Fprintf(rw, "data: %s\n\n", json); err != nil {
 					log.Println("failed to write projection update to client:", err)
-					http.Error(rw, "failed to write projection update to client", http.StatusInternalServerError)
 					return
 				}
 				flusher.Flush()
