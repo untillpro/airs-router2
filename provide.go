@@ -270,7 +270,7 @@ func (s *httpService) registerHandlers() (err error) {
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
 		wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
 		Methods("POST", "PATCH", "OPTIONS").Name("api")
-	s.router.Handle("/n10n/channel", s.subscribeAndWatchHandler(s.ctx)).Methods("GET")
+	s.router.Handle("/n10n/channel", s.subscribeAndWatchHandler()).Methods("GET")
 	s.router.Handle("/n10n/subscribe", s.subscribeHandler()).Methods("GET")
 	s.router.Handle("/n10n/unsubscribe", s.unSubscribeHandler()).Methods("GET")
 	s.router.Handle("/n10n/update/{offset:[0-9]{1,10}}", s.updateHandler())
@@ -338,7 +338,7 @@ curl -G --data-urlencode "payload={\"SubjectLogin\": \"paa\", \"projectionKey\":
 curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}}" https://localhost:3001/n10n/subscribe -H "Content-Type: application/json"
 curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}}" https://localhost:3001/n10n/unsubscribe -H "Content-Type: application/json"
 */
-func (s *httpService) subscribeAndWatchHandler(ctx context.Context) http.HandlerFunc {
+func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		var (
 			urlParams urlParamType
@@ -378,14 +378,14 @@ func (s *httpService) subscribeAndWatchHandler(ctx context.Context) http.Handler
 			return
 		}
 		ch := make(chan UpdateUnit)
-		go s.n10n.WatchChannel(ctx, channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
+		go s.n10n.WatchChannel(req.Context(), channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
 			var unit = UpdateUnit{
 				Projection: projection,
 				Offset:     offset,
 			}
 			ch <- unit
 		})
-		for ctx.Err() == nil {
+		for req.Context().Err() == nil {
 			result := <-ch
 			json, err := json.Marshal(&result)
 			if err == nil {
