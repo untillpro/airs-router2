@@ -334,28 +334,34 @@ func (s *acmeService) Stop() {
 }
 
 /*
-curl -G --data-urlencode "payload={\"SubjectLogin\": \"paa\", \"projectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.price\",\"WS\":1}}" https://localhost:3001/n10n/channel -H "Content-Type: application/json"
-curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}}" https://localhost:3001/n10n/subscribe -H "Content-Type: application/json"
-curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}}" https://localhost:3001/n10n/unsubscribe -H "Content-Type: application/json"
+curl -G --data-urlencode "payload={\"SubjectLogin\": \"paa\", \"ProjectionKey\":[{\"App\":\"Application\",\"Projection\":\"paa.price\",\"WS\":1}, {\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}]}" https://alpha2.dev.untill.ru/n10n/channel -H "Content-Type: application/json"
 */
 func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
 		var (
-			urlParams urlParamType
+			urlParams createChannelParamsType
 			channel   in10n.ChannelID
+			flusher   http.Flusher
+			err       error
 		)
-
 		rw.Header().Set("Content-Type", "text/event-stream")
 		rw.Header().Set("Cache-Control", "no-cache")
 		rw.Header().Set("Connection", "keep-alive")
-
-		err := getJsonPayload(req, &urlParams)
-		if err != nil {
-			log.Println(err)
-			http.Error(rw, "Error read SubjectLogin and ProjectionKey data for subscribe and watch!", http.StatusBadRequest)
+		jsonParam, ok := req.URL.Query()["payload"]
+		if !ok || len(jsonParam[0]) < 1 {
+			log.Println("Query parameter with payload (SubjectLogin id and ProjectionKey) is missing.")
+			err = errors.New("query parameter with payload (SubjectLogin id and ProjectionKey) is missing")
+			http.Error(rw, err.Error(), http.StatusBadRequest)
 			return
 		}
-		flusher, ok := rw.(http.Flusher)
+		err = json.Unmarshal([]byte(jsonParam[0]), &urlParams)
+		if err != nil {
+			log.Println(err)
+			err = fmt.Errorf("cannot unmarshal input payload %w", err)
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			return
+		}
+		flusher, ok = rw.(http.Flusher)
 		if !ok {
 			http.Error(rw, "Streaming unsupported!", http.StatusInternalServerError)
 			return
@@ -366,16 +372,18 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			http.Error(rw, "Error create new channel", http.StatusTooManyRequests)
 			return
 		}
-		if _, err = fmt.Fprintf(rw, "data: %s\n\n", channel); err != nil {
+		if _, err = fmt.Fprintf(rw, "event: channelId\ndata: %s\n\n", channel); err != nil {
 			log.Println("failed to write created channel id to client:", err)
 			return
 		}
 		flusher.Flush()
-		err = s.n10n.Subscribe(channel, urlParams.ProjectionKey)
-		if err != nil {
-			log.Println(err)
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
+		for _, projection := range urlParams.ProjectionKey {
+			err = s.n10n.Subscribe(channel, projection)
+			if err != nil {
+				log.Println(err)
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		ch := make(chan UpdateUnit)
 		go s.n10n.WatchChannel(req.Context(), channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
@@ -386,47 +394,64 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			ch <- unit
 		})
 		for req.Context().Err() == nil {
+			var (
+				projection, offset []byte
+			)
 			result := <-ch
-			json, err := json.Marshal(&result)
+			projection, err = json.Marshal(&result.Projection)
 			if err == nil {
-				if _, err = fmt.Fprintf(rw, "data: %s\n\n", json); err != nil {
-					log.Println("failed to write projection update to client:", err)
+				if _, err = fmt.Fprintf(rw, "event: %s\n", projection); err != nil {
+					log.Println("failed to write projection key event to client:", err)
 				}
-				flusher.Flush()
 			}
+			offset, err = json.Marshal(&result.Offset)
+			if _, err = fmt.Fprintf(rw, "data: %s\n\n", offset); err != nil {
+				log.Println("failed to write projection key offset to client:", err)
+			}
+			flusher.Flush()
 		}
 
 	}
 }
 
+/*
+curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":[{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}]}" https://alpha2.dev.untill.ru/n10n/subscribe -H "Content-Type: application/json"
+*/
 func (s *httpService) subscribeHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
-		var parameters urlParamType
+		var parameters subscriberParamsType
 		err := getJsonPayload(req, &parameters)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 		}
-		err = s.n10n.Subscribe(parameters.Channel, parameters.ProjectionKey)
-		if err != nil {
-			log.Println(err)
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
+		for _, projection := range parameters.ProjectionKey {
+			err = s.n10n.Subscribe(parameters.Channel, projection)
+			if err != nil {
+				log.Println(err)
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 }
 
+/*
+curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":[{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}]}" https://alpha2.dev.untill.ru/n10n/unsubscribe -H "Content-Type: application/json"
+*/
 func (s *httpService) unSubscribeHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, req *http.Request) {
-		var parameters urlParamType
+		var parameters subscriberParamsType
 		err := getJsonPayload(req, &parameters)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 		}
-		err = s.n10n.Unsubscribe(parameters.Channel, parameters.ProjectionKey)
-		if err != nil {
-			log.Println(err)
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
+		for _, projection := range parameters.ProjectionKey {
+			err = s.n10n.Unsubscribe(parameters.Channel, projection)
+			if err != nil {
+				log.Println(err)
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 }
@@ -457,16 +482,16 @@ func (s *httpService) updateHandler() http.HandlerFunc {
 	}
 }
 
-func getJsonPayload(req *http.Request, payload *urlParamType) (err error) {
+func getJsonPayload(req *http.Request, payload *subscriberParamsType) (err error) {
 	jsonParam, ok := req.URL.Query()["payload"]
 	if !ok || len(jsonParam[0]) < 1 {
 		log.Println("Url parameter with payload (channel id and projection key) is missing.")
-		return errors.New("Url parameter  with payload (channel id and projection key) is missing.")
+		err = errors.New("Url parameter  with payload (channel id and projection key) is missing.")
 	}
 	err = json.Unmarshal([]byte(jsonParam[0]), payload)
 	if err != nil {
 		log.Println(err)
-		return fmt.Errorf("cannot unmarshal input payload %w", err)
+		err = fmt.Errorf("cannot unmarshal input payload %w", err)
 	}
-	return nil
+	return err
 }
