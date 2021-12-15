@@ -138,6 +138,8 @@ func (s *httpsService) Prepare(work interface{}) error {
 
 func (s *httpsService) Run(ctx context.Context) {
 	log.Printf("Starting HTTPS server on %s\n", s.server.Addr)
+	logger.Info("HTTPS server Write Timeout: ", s.server.WriteTimeout)
+	logger.Info("HTTPS server Read Timeout: ", s.server.ReadTimeout)
 	if err := s.server.ServeTLS(s.listener, "", ""); err != http.ErrServerClosed {
 		log.Fatalf("Service.ServeTLS() failure: %s", err)
 	}
@@ -177,6 +179,9 @@ func (s *httpService) Run(ctx context.Context) {
 		return ctx // need to track both client disconnect and app finalize
 	}
 	s.ctx = ctx
+	log.Printf("Starting HTTP server on %s\n", s.server.Addr)
+	logger.Info("HTTP server Write Timeout: ", s.server.WriteTimeout)
+	logger.Info("HTTP server Read Timeout: ", s.server.ReadTimeout)
 	if err := s.server.Serve(s.listener); err != http.ErrServerClosed {
 		log.Println("main HTTP server failure: " + err.Error())
 	}
