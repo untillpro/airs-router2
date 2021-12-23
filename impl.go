@@ -167,11 +167,12 @@ func createRequest(reqMethod string, req *http.Request) (res ibus.Request, err e
 	// no need to check to err because of regexp in a handler
 	WSIDNum, _ := strconv.ParseInt(WSID, 10, 64)
 	res = ibus.Request{
-		Method:  ibus.NameToHTTPMethod[reqMethod],
-		QueueID: vars[queueAliasVar],
-		WSID:    WSIDNum,
-		Query:   req.URL.Query(),
-		Header:  req.Header,
+		Method:      ibus.NameToHTTPMethod[reqMethod],
+		QueueID:     vars[queueAliasVar],
+		WSID:        WSIDNum,
+		Query:       req.URL.Query(),
+		Header:      req.Header,
+		RequestHost: req.Host,
 	}
 	if req.Body != nil && req.Body != http.NoBody {
 		res.Body, err = ioutil.ReadAll(req.Body)
