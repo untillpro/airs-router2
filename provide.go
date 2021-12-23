@@ -275,10 +275,10 @@ func (s *httpService) registerHandlers() (err error) {
 	s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
 		wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
 		Methods("POST", "PATCH", "OPTIONS").Name("api")
-	s.router.Handle("/n10n/channel", s.subscribeAndWatchHandler()).Methods("GET")
-	s.router.Handle("/n10n/subscribe", s.subscribeHandler()).Methods("GET")
-	s.router.Handle("/n10n/unsubscribe", s.unSubscribeHandler()).Methods("GET")
-	s.router.Handle("/n10n/update/{offset:[0-9]{1,10}}", s.updateHandler())
+	s.router.Handle("/n10n/channel", corsHandler(s.subscribeAndWatchHandler())).Methods("GET")
+	s.router.Handle("/n10n/subscribe", corsHandler(s.subscribeHandler())).Methods("GET")
+	s.router.Handle("/n10n/unsubscribe", corsHandler(s.unSubscribeHandler())).Methods("GET")
+	s.router.Handle("/n10n/update/{offset:[0-9]{1,10}}", corsHandler(s.updateHandler()))
 
 	// must be the last handler
 	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
@@ -409,7 +409,7 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 					log.Println("failed to write projection key event to client:", err)
 				}
 			}
-			offset, err = json.Marshal(&result.Offset)
+			offset, _ = json.Marshal(&result.Offset) // error impossible
 			if _, err = fmt.Fprintf(rw, "data: %s\n\n", offset); err != nil {
 				log.Println("failed to write projection key offset to client:", err)
 			}
@@ -491,7 +491,7 @@ func getJsonPayload(req *http.Request, payload *subscriberParamsType) (err error
 	jsonParam, ok := req.URL.Query()["payload"]
 	if !ok || len(jsonParam[0]) < 1 {
 		log.Println("Url parameter with payload (channel id and projection key) is missing.")
-		err = errors.New("Url parameter  with payload (channel id and projection key) is missing.")
+		return errors.New("Url parameter with payload (channel id and projection key) is missing.")
 	}
 	err = json.Unmarshal([]byte(jsonParam[0]), payload)
 	if err != nil {
