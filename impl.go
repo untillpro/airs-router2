@@ -25,6 +25,8 @@ const (
 	queueAliasVar                 = "queue-alias"
 	wSIDVar                       = "partition-dividend"
 	resourceNameVar               = "resource-name"
+	bp3AppOwner                   = "app-owner"
+	bp3AppName                    = "app-name"
 	DefaultRouterPort             = 8822
 	DefaultRouterConnectionsLimit = 10000
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
@@ -40,20 +42,24 @@ var (
 	onAfterSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
 )
 
-func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap) http.HandlerFunc {
+func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, isBP3 bool) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		if logger.IsDebug() {
 			logger.Debug("serving ", req.Method, " ", req.URL.Path)
 		}
 		vars := mux.Vars(req)
-		numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
-		queueRequest, err := createRequest(req.Method, req)
+		queueRequest, err := createRequest(req.Method, req, isBP3)
 		if err != nil {
 			log.Println("failed to read body:", err)
 			return
 		}
+
+		if len(queueNumberOfPartitions) > 0 {
+			// note: Partition here is not used in BP3
+			numberOfPartitions := queueNumberOfPartitions[vars[queueAliasVar]]
+			queueRequest.PartitionNumber = int(queueRequest.WSID % int64(numberOfPartitions))
+		}
 		queueRequest.Resource = vars[resourceNameVar]
-		queueRequest.PartitionNumber = int(queueRequest.WSID % int64(numberOfPartitions))
 
 		// req's BaseContext is router service's context. See service.Start()
 		// router app closing or client disconnected -> req.Context() is done
@@ -161,18 +167,22 @@ func checkHandler() http.HandlerFunc {
 	}
 }
 
-func createRequest(reqMethod string, req *http.Request) (res ibus.Request, err error) {
+func createRequest(reqMethod string, req *http.Request, isBP3 bool) (res ibus.Request, err error) {
 	vars := mux.Vars(req)
 	WSID := vars[wSIDVar]
 	// no need to check to err because of regexp in a handler
 	WSIDNum, _ := strconv.ParseInt(WSID, 10, 64)
 	res = ibus.Request{
 		Method:      ibus.NameToHTTPMethod[reqMethod],
-		QueueID:     vars[queueAliasVar],
 		WSID:        WSIDNum,
 		Query:       req.URL.Query(),
 		Header:      req.Header,
 		RequestHost: req.Host,
+	}
+	if isBP3 {
+		res.AppName = vars[bp3AppOwner] + "/" + vars[bp3AppName]
+	} else {
+		res.QueueID = vars[queueAliasVar]
 	}
 	if req.Body != nil && req.Body != http.NoBody {
 		res.Body, err = ioutil.ReadAll(req.Body)

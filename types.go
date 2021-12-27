@@ -6,10 +6,11 @@ package router2
 
 import (
 	"context"
-	in10n "github.com/heeus/core-in10n"
-	istructs "github.com/heeus/core-istructs"
 	"net"
 	"net/http"
+
+	in10n "github.com/heeus/core-in10n"
+	istructs "github.com/heeus/core-istructs"
 
 	"github.com/gorilla/mux"
 	ibusnats "github.com/untillpro/airs-ibusnats"
@@ -26,6 +27,7 @@ type RouterParams struct {
 	QueuesPartitions ibusnats.QueuesPartitionsMap
 
 	// used in airs-bp3 only
+	UseBP3              bool // impacts on router handlers
 	HTTP01ChallengeHost string
 	CertDir             string
 	RouteDefault        string            // http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
