@@ -4,8 +4,8 @@ go 1.17
 
 require (
 	github.com/gorilla/mux v1.8.0
-	github.com/heeus/core-in10n v0.0.0-20211101131415-82e815d039a3
-	github.com/heeus/core-istructs v0.0.0-20211206141422-60059069f07a
+	github.com/heeus/core-in10n v0.0.0-20211229144130-0259d6fd52f9
+	github.com/heeus/core-istructs v0.0.0-20211229142808-f697cf7db486
 	github.com/heeus/core-logger v0.0.0-20211015110533-1499b5b04842
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0

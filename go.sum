@@ -15,11 +15,10 @@ github.com/google/go-cmp v0.4.0/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/
 github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
 github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
-github.com/heeus/core-in10n v0.0.0-20211101131415-82e815d039a3 h1:braSo7lR7BdMzDFh9GZ9zfjG5/7ONlnZ8AB0hnV+5kQ=
-github.com/heeus/core-in10n v0.0.0-20211101131415-82e815d039a3/go.mod h1:p4oAJCAq4GW+2XWe+nYgY4ZL/MOAELH1r34ybUuf92I=
-github.com/heeus/core-istructs v0.0.0-20211019174953-2d479edfbcf8/go.mod h1:muxLMBJp7FCf+Nsvx1yqzj9+r/6k9jJLe/yH2uYhzWY=
-github.com/heeus/core-istructs v0.0.0-20211206141422-60059069f07a h1:Vxdn+vIrkYkkdHISJjpq+qnawTWiRR7uMjLWJBzPJts=
-github.com/heeus/core-istructs v0.0.0-20211206141422-60059069f07a/go.mod h1:oBnZjfHZceR9BDMvXntoryLsgsQuhiKEB11lKHAoiVI=
+github.com/heeus/core-in10n v0.0.0-20211229144130-0259d6fd52f9 h1:KYtQa2tcs2ThJ/X+tb4HVIM0IKj4F5sHZdzc1rqRw8U=
+github.com/heeus/core-in10n v0.0.0-20211229144130-0259d6fd52f9/go.mod h1:wjRCvkXTYTSMGXiX2jAL/GeNUQ1UXB3DAtzglzCkovw=
+github.com/heeus/core-istructs v0.0.0-20211229142808-f697cf7db486 h1:BVSexTlcdatxWmMAnA00ln6IQ8HE3lraXweVMGaoOfo=
+github.com/heeus/core-istructs v0.0.0-20211229142808-f697cf7db486/go.mod h1:oBnZjfHZceR9BDMvXntoryLsgsQuhiKEB11lKHAoiVI=
 github.com/heeus/core-logger v0.0.0-20211015110533-1499b5b04842 h1:X2LRJXKOT3cBYOIoVPDFd/Rockq14waiag6T5QGZdNY=
 github.com/heeus/core-logger v0.0.0-20211015110533-1499b5b04842/go.mod h1:yTNAkvEhCxUhuMB0g8OJKjve8tHAUIQ9MmRDn0z20b0=
 github.com/heeus/core-pipeline v0.0.0-20211020124904-df3caaaecd30 h1:/Y1fRcbnXbxLZ6apVJz4s6YFuJ1EjVy0PzXwLzg7Sig=
