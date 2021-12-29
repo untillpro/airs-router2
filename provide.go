@@ -274,11 +274,11 @@ func (s *httpService) registerHandlers() (err error) {
 	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("app names")
 	if s.RouterParams.UseBP3 {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", bp3AppOwner, bp3AppName,
-			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.UseBP3))).
+			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
 			Methods("POST", "PATCH", "OPTIONS").Name("api")
 	} else {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
-			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.UseBP3))).
+			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
 			Methods("POST", "PATCH", "OPTIONS").Name("api")
 	}
 	s.router.Handle("/n10n/channel", corsHandler(s.subscribeAndWatchHandler())).Methods("GET")
