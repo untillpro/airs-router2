@@ -180,8 +180,6 @@ func (s *httpService) Run(ctx context.Context) {
 	}
 	s.ctx = ctx
 	log.Printf("Starting HTTP server on %s\n", s.server.Addr)
-	logger.Info("HTTP server Write Timeout: ", s.server.WriteTimeout)
-	logger.Info("HTTP server Read Timeout: ", s.server.ReadTimeout)
 	if err := s.server.Serve(s.listener); err != http.ErrServerClosed {
 		log.Println("main HTTP server failure: " + err.Error())
 	}
