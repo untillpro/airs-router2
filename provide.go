@@ -191,6 +191,11 @@ func (s *httpService) Stop() {
 		s.listener.Close()
 		s.server.Close()
 	}
+	if s.n10n != nil {
+		for s.n10n.MetricNumSubcriptions() > 0 {
+			time.Sleep(subscriptionsCloseCheckInterval)
+		}
+	}
 }
 
 func parseRoutes(routesURLs map[string]route, routes map[string]string, isRewrite bool) error {
@@ -395,18 +400,24 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			}
 		}
 		ch := make(chan UpdateUnit)
-		go s.n10n.WatchChannel(req.Context(), channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
-			var unit = UpdateUnit{
-				Projection: projection,
-				Offset:     offset,
-			}
-			ch <- unit
-		})
+		go func() {
+			defer close(ch)
+			s.n10n.WatchChannel(req.Context(), channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
+				var unit = UpdateUnit{
+					Projection: projection,
+					Offset:     offset,
+				}
+				ch <- unit
+			})
+		}()
 		for req.Context().Err() == nil {
 			var (
 				projection, offset []byte
 			)
-			result := <-ch
+			result, ok := <-ch
+			if !ok {
+				break
+			}
 			projection, err = json.Marshal(&result.Projection)
 			if err == nil {
 				if _, err = fmt.Fprintf(rw, "event: %s\n", projection); err != nil {
@@ -419,7 +430,6 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			}
 			flusher.Flush()
 		}
-
 	}
 }
 

@@ -7,7 +7,8 @@ package router2
 import "time"
 
 const (
-	HTTPSPort                     = 443
-	DefaultACMEServerReadTimeout  = 5 * time.Second
-	DefaultACMEServerWriteTimeout = 5 * time.Second
+	HTTPSPort                       = 443
+	DefaultACMEServerReadTimeout    = 5 * time.Second
+	DefaultACMEServerWriteTimeout   = 5 * time.Second
+	subscriptionsCloseCheckInterval = 100 * time.Millisecond
 )
