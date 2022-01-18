@@ -49,6 +49,7 @@ type BlobberParams struct {
 	BLOBWorkersNum         int
 	procBus                iprocbus.IProcBus
 	RetryAfterSecondsOn503 int
+	BLOBMaxSize            int64
 }
 
 type httpService struct {

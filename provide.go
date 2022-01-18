@@ -53,7 +53,7 @@ func ProvideBP3(ctx context.Context, rp RouterParams, aBusTimeout time.Duration,
 			httpService.blobWG.Add(1)
 			go func(i int) {
 				defer httpService.blobWG.Done()
-				blobMessageHandler(ctx, bp.procBus.ServiceChannel(0, 0), bp.ClusterAppBlobberID, bp.BLOBStorage)
+				blobMessageHandler(ctx, bp.procBus.ServiceChannel(0, 0), bp.ClusterAppBlobberID, bp.BLOBStorage, bp.BLOBMaxSize)
 			}(i)
 		}
 
