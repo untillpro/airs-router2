@@ -128,6 +128,10 @@ func blobWriteMessageHandler(bbm blobBaseMessage, blobWriteDetails blobWriteDeta
 	}
 
 	if err := blobStorage.WriteBLOB(bbm.req.Context(), key, descr, bbm.req.Body, int64(blobMaxSize)); err != nil {
+		if err == iblobstorage.ErrBLOBSizeQuotaExceeded {
+			writeTextResponse(bbm.resp, fmt.Sprintf("blob size quouta exceeded (max %d allowed)", blobMaxSize), http.StatusForbidden)
+			return
+		}
 		writeTextResponse(bbm.resp, err.Error(), http.StatusInternalServerError)
 		return
 	}
