@@ -85,6 +85,10 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 		return nil
 	}
 	if err := blobStorage.ReadBLOB(bbm.req.Context(), key, stateWriterDiscard, bbm.resp); err != nil {
+		if err == iblobstorage.ErrBLOBNotFound {
+			writeTextResponse(bbm.resp, err.Error(), http.StatusNotFound)
+			return
+		}
 		writeTextResponse(bbm.resp, err.Error(), http.StatusInternalServerError)
 	}
 }
