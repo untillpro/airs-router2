@@ -290,9 +290,9 @@ func (s *httpService) registerHandlers(bp *BlobberParams) (err error) {
 	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS").Name("router check")
 	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("queues names")
 	if bp != nil {
-		s.router.Handle(fmt.Sprintf("/api/sys/blob/{%s:[0-9]+}", wSIDVar), corsHandler(s.blobReadRequestHandler())).
+		s.router.Handle(fmt.Sprintf("/api/sys/blobber/{%s:[0-9]+}", wSIDVar), corsHandler(s.blobReadRequestHandler())).
 			Methods("GET").Queries("principalToken", "{principalToken}", "blobID", "{blobID}").Name("blob read")
-		s.router.Handle(fmt.Sprintf("/api/sys/blob/{%s:[0-9]+}", wSIDVar), corsHandler(s.blobWriteRequestHandler())).
+		s.router.Handle(fmt.Sprintf("/api/sys/blobber/{%s:[0-9]+}", wSIDVar), corsHandler(s.blobWriteRequestHandler())).
 			Methods("POST").Queries("principalToken", "{principalToken}", "name", "{name}", "mimeType", "{mimeType}").Name("blob write")
 	}
 	if s.RouterParams.UseBP3 {
