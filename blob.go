@@ -90,7 +90,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 }
 
 func blobWriteMessageHandler(bbm blobBaseMessage, blobWriteDetails blobWriteDetails, clusterAppBlobberID istructs.ClusterAppID,
-	blobStorage iblobstorage.IBLOBStorage, blobMaxSize int64) {
+	blobStorage iblobstorage.IBLOBStorage, blobMaxSize BLOBMaxSizeType) {
 	defer close(bbm.doneChan)
 
 	// request HVM for check the principalToken and get a blobID
@@ -127,7 +127,7 @@ func blobWriteMessageHandler(bbm blobBaseMessage, blobWriteDetails blobWriteDeta
 		MimeType: blobWriteDetails.mimeType,
 	}
 
-	if err := blobStorage.WriteBLOB(bbm.req.Context(), key, descr, bbm.req.Body, blobMaxSize); err != nil {
+	if err := blobStorage.WriteBLOB(bbm.req.Context(), key, descr, bbm.req.Body, int64(blobMaxSize)); err != nil {
 		writeTextResponse(bbm.resp, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -136,7 +136,7 @@ func blobWriteMessageHandler(bbm blobBaseMessage, blobWriteDetails blobWriteDeta
 
 // ctx here is HVM context. It used to track HVM shutdown. Blobber will use the request's context
 func blobMessageHandler(ctx context.Context, sc iprocbus.ServiceChannel, clusterAppBlobberID istructs.ClusterAppID,
-	blobStorage iblobstorage.IBLOBStorage, blobMaxSize int64) {
+	blobStorage iblobstorage.IBLOBStorage, blobMaxSize BLOBMaxSizeType) {
 	for ctx.Err() == nil {
 		select {
 		case mesIntf := <-sc:

@@ -41,6 +41,7 @@ type RouterParams struct {
 }
 
 type BlobberServiceChannels []iprocbusmem.ChannelGroup
+type BLOBMaxSizeType int64
 
 type BlobberParams struct {
 	ServiceChannels        BlobberServiceChannels
@@ -49,7 +50,7 @@ type BlobberParams struct {
 	BLOBWorkersNum         int
 	procBus                iprocbus.IProcBus
 	RetryAfterSecondsOn503 int
-	BLOBMaxSize            int64
+	BLOBMaxSize            BLOBMaxSizeType
 }
 
 type httpService struct {
