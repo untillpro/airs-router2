@@ -97,7 +97,7 @@ func blobWriteMessageHandler(bbm blobBaseMessage, blobWriteDetails blobWriteDeta
 	req := ibus.Request{
 		Method:   ibus.HTTPMethodPOST,
 		WSID:     int64(bbm.wsid),
-		AppQName: "sys/blob",
+		AppQName: istructs.AppQName_sys_blobber.String(),
 		Resource: "c.sys.uploadBLOBHelper",
 		Body:     []byte(`{"args": {"principalToken":"` + bbm.principalToken + `"}}`),
 	}
