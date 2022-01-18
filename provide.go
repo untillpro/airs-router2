@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 
 	in10n "github.com/heeus/core-in10n"
+	iprocbusmem "github.com/heeus/core-iprocbusmem"
 	istructs "github.com/heeus/core-istructs"
 
 	"fmt"
@@ -34,16 +35,28 @@ import (
 	"golang.org/x/net/netutil"
 )
 
-func Provide(ctx context.Context, rp RouterParams) []interface{} {
-	return ProvideWithBusTimeout(ctx, rp, ibus.DefaultTimeout, nil, in10n.Quotas{})
+func ProvideBP2(ctx context.Context, rp RouterParams) []interface{} {
+	return ProvideBP3(ctx, rp, ibus.DefaultTimeout, nil, in10n.Quotas{}, nil)
 }
 
 // http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
-func ProvideWithBusTimeout(ctx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas) []interface{} {
+func ProvideBP3(ctx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas, bp *BlobberParams) []interface{} {
 	httpService := httpService{
-		RouterParams: rp,
-		queues:       rp.QueuesPartitions,
-		n10n:         broker,
+		RouterParams:  rp,
+		queues:        rp.QueuesPartitions,
+		n10n:          broker,
+		BlobberParams: bp,
+	}
+	if bp != nil {
+		bp.procBus = iprocbusmem.Provide(bp.ServiceChannels)
+		for i := 0; i < bp.BLOBWorkersNum; i++ {
+			httpService.blobWG.Add(1)
+			go func(i int) {
+				defer httpService.blobWG.Done()
+				blobMessageHandler(ctx, bp.procBus.ServiceChannel(0, 0), bp.ClusterAppBlobberID, bp.BLOBStorage)
+			}(i)
+		}
+
 	}
 	busTimeout = aBusTimeout
 	if rp.Port != HTTPSPort {
@@ -65,7 +78,7 @@ func ProvideWithBusTimeout(ctx context.Context, rp RouterParams, aBusTimeout tim
 	}
 
 	httpsService := &httpsService{
-		httpService: httpService,
+		httpService: &httpService,
 		crtMgr:      crtMgr,
 	}
 
@@ -149,7 +162,7 @@ func (s *httpsService) Run(ctx context.Context) {
 func (s *httpService) Prepare(work interface{}) (err error) {
 	s.router = mux.NewRouter()
 
-	if err = s.registerHandlers(); err != nil {
+	if err = s.registerHandlers(s.BlobberParams); err != nil {
 		return err
 	}
 
@@ -196,6 +209,7 @@ func (s *httpService) Stop() {
 			time.Sleep(subscriptionsCloseCheckInterval)
 		}
 	}
+	s.blobWG.Wait()
 }
 
 func parseRoutes(routesURLs map[string]route, routes map[string]string, isRewrite bool) error {
@@ -268,13 +282,19 @@ func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err
 	}, nil
 }
 
-func (s *httpService) registerHandlers() (err error) {
+func (s *httpService) registerHandlers(bp *BlobberParams) (err error) {
 	redirectMatcher, err := s.getRedirectMatcher()
 	if err != nil {
 		return err
 	}
 	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS").Name("router check")
-	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("app names")
+	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("queues names")
+	if bp != nil {
+		s.router.Handle(fmt.Sprintf("/api/sys/blob/{%s:[0-9]+}", wSIDVar), corsHandler(s.blobReadRequestHandler())).
+			Methods("GET").Queries("principalToken", "{principalToken}", "blobID", "{blobID}").Name("blob read")
+		s.router.Handle(fmt.Sprintf("/api/sys/blob/{%s:[0-9]+}", wSIDVar), corsHandler(s.blobWriteRequestHandler())).
+			Methods("POST").Queries("principalToken", "{principalToken}", "name", "{name}", "mimeType", "{mimeType}").Name("blob write")
+	}
 	if s.RouterParams.UseBP3 {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", bp3AppOwner, bp3AppName,
 			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
@@ -292,11 +312,6 @@ func (s *httpService) registerHandlers() (err error) {
 	// must be the last handler
 	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
 	return nil
-}
-
-type route struct {
-	targetURL *url.URL
-	isRewrite bool
 }
 
 func parseURL(urlStr string) (url *url.URL, err error) {
@@ -504,8 +519,8 @@ func (s *httpService) updateHandler() http.HandlerFunc {
 func getJsonPayload(req *http.Request, payload *subscriberParamsType) (err error) {
 	jsonParam, ok := req.URL.Query()["payload"]
 	if !ok || len(jsonParam[0]) < 1 {
-		log.Println("Url parameter with payload (channel id and projection key) is missing.")
-		return errors.New("Url parameter with payload (channel id and projection key) is missing.")
+		log.Println("Url parameter with payload (channel id and projection key) is missing")
+		return errors.New("url parameter with payload (channel id and projection key) is missing")
 	}
 	err = json.Unmarshal([]byte(jsonParam[0]), payload)
 	if err != nil {

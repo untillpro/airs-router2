@@ -79,7 +79,6 @@ func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap) http
 			writeResponse(resp, string(res.Data))
 			return
 		}
-
 		writeSectionedResponse(resp, sections, secErr, cancel)
 	}
 }

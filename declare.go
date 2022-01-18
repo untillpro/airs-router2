@@ -44,7 +44,7 @@ func Declare(ctx context.Context, cqn ibusnats.CurrentQueueName) {
 		ibusnats.Declare(ibusnatsSrv)
 	}
 
-	srvs := Provide(ctx, params)
+	srvs := ProvideBP2(ctx, params)
 	routerSrv := Service{
 		RouterParams:    params,
 		srvs:            srvs,

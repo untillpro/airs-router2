@@ -8,8 +8,13 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/url"
+	"sync"
 
+	iblobstorage "github.com/heeus/core-iblobstorage"
 	in10n "github.com/heeus/core-in10n"
+	iprocbus "github.com/heeus/core-iprocbus"
+	iprocbusmem "github.com/heeus/core-iprocbusmem"
 	istructs "github.com/heeus/core-istructs"
 
 	"github.com/gorilla/mux"
@@ -35,18 +40,31 @@ type RouterParams struct {
 	RoutesRewrite       map[string]string // /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
 }
 
+type BlobberServiceChannels []iprocbusmem.ChannelGroup
+
+type BlobberParams struct {
+	ServiceChannels        BlobberServiceChannels
+	ClusterAppBlobberID    istructs.ClusterAppID
+	BLOBStorage            iblobstorage.IBLOBStorage
+	BLOBWorkersNum         int
+	procBus                iprocbus.IProcBus
+	RetryAfterSecondsOn503 int
+}
+
 type httpService struct {
 	RouterParams
+	*BlobberParams
 	router   *mux.Router
 	server   *http.Server
 	listener net.Listener
 	ctx      context.Context
 	queues   ibusnats.QueuesPartitionsMap
 	n10n     in10n.IN10nBroker
+	blobWG   sync.WaitGroup
 }
 
 type httpsService struct {
-	httpService
+	*httpService
 	crtMgr *autocert.Manager
 }
 
@@ -69,4 +87,9 @@ type createChannelParamsType struct {
 type subscriberParamsType struct {
 	Channel       in10n.ChannelID
 	ProjectionKey []in10n.ProjectionKey
+}
+
+type route struct {
+	targetURL *url.URL
+	isRewrite bool
 }

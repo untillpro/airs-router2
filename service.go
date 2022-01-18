@@ -25,7 +25,7 @@ const routerKey = routerKeyType("router")
 
 // Start s.e.
 func (s *Service) Start(ctx context.Context) (context.Context, error) {
-	s.srvs = Provide(ctx, s.RouterParams)
+	s.srvs = ProvideBP2(ctx, s.RouterParams)
 	for _, srvIntf := range s.srvs {
 		// simulate pipeline.ServiceOperator
 		srv := srvIntf.(interface {
