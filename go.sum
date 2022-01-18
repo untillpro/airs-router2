@@ -26,8 +26,9 @@ github.com/heeus/core-iprocbus v0.0.0-20211103075415-810b8e91a7d6/go.mod h1:4OlY
 github.com/heeus/core-iprocbusmem v0.0.0-20211103080058-90cf22b74bc9 h1:TDTMQpWDNYfjVOLC2Pdd21Y7MUF7wvWVyHbm9IwF/fY=
 github.com/heeus/core-iprocbusmem v0.0.0-20211103080058-90cf22b74bc9/go.mod h1:flpwt51gkuS/Ckh6GYcpd6HG465i9odN7/bhd9h1VLg=
 github.com/heeus/core-istructs v0.0.0-20211222105006-7ff04799fc52/go.mod h1:oBnZjfHZceR9BDMvXntoryLsgsQuhiKEB11lKHAoiVI=
-github.com/heeus/core-istructs v0.0.0-20211229142808-f697cf7db486 h1:BVSexTlcdatxWmMAnA00ln6IQ8HE3lraXweVMGaoOfo=
 github.com/heeus/core-istructs v0.0.0-20211229142808-f697cf7db486/go.mod h1:oBnZjfHZceR9BDMvXntoryLsgsQuhiKEB11lKHAoiVI=
+github.com/heeus/core-istructs v0.0.0-20220118115625-f39541de0530 h1:I/SYn1oJn9YuVnRkfP1yBGBMENzrXGHKL6yRq0SVBjM=
+github.com/heeus/core-istructs v0.0.0-20220118115625-f39541de0530/go.mod h1:oBnZjfHZceR9BDMvXntoryLsgsQuhiKEB11lKHAoiVI=
 github.com/heeus/core-logger v0.0.0-20211015110533-1499b5b04842 h1:X2LRJXKOT3cBYOIoVPDFd/Rockq14waiag6T5QGZdNY=
 github.com/heeus/core-logger v0.0.0-20211015110533-1499b5b04842/go.mod h1:yTNAkvEhCxUhuMB0g8OJKjve8tHAUIQ9MmRDn0z20b0=
 github.com/heeus/core-pipeline v0.0.0-20211020124904-df3caaaecd30/go.mod h1:285jU5GHo8YFDPd60Q6y+Ls4hCqyg3tDKBqLHxUHdrU=

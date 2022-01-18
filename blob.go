@@ -53,7 +53,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 	req := ibus.Request{
 		Method:   ibus.HTTPMethodPOST,
 		WSID:     int64(bbm.wsid),
-		AppQName: "sys/blob",
+		AppQName: istructs.AppQName_sys_blobber.String(),
 		Resource: "c.sys.downloadBLOBHelper",
 		Body:     []byte(`{"args": {"principalToken":"` + bbm.principalToken + `"}}`),
 	}
