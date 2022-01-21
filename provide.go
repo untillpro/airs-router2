@@ -7,9 +7,6 @@ package router2
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
-	"errors"
-	"io/ioutil"
 
 	in10n "github.com/heeus/core-in10n"
 	iprocbusmem "github.com/heeus/core-iprocbusmem"
@@ -19,18 +16,14 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	logger "github.com/heeus/core-logger"
 	flag "github.com/spf13/pflag"
 	ibus "github.com/untillpro/airs-ibus"
-	"github.com/valyala/bytebufferpool"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
 )
@@ -162,7 +155,7 @@ func (s *httpsService) Run(ctx context.Context) {
 func (s *httpService) Prepare(work interface{}) (err error) {
 	s.router = mux.NewRouter()
 
-	if err = s.registerHandlers(s.BlobberParams); err != nil {
+	if err = s.registerHandlers(); err != nil {
 		return err
 	}
 
@@ -212,84 +205,14 @@ func (s *httpService) Stop() {
 	s.blobWG.Wait()
 }
 
-func parseRoutes(routesURLs map[string]route, routes map[string]string, isRewrite bool) error {
-	for from, to := range routes {
-		if !strings.HasPrefix(from, "/") {
-			return fmt.Errorf("%s reverse proxy url must have a leading slash", from)
-		}
-		targetURL, err := parseURL(to)
-		if err != nil {
-			return err
-		}
-		routesURLs[from] = route{
-			targetURL,
-			isRewrite,
-		}
-		logger.Info("reverse proxy route registered: ", from, " -> ", to)
-	}
-	return nil
-}
-
-// match reverse proxy urls, redirect and handle as reverse proxy
-// route        : /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
-// route rewrite: /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
-// default route: http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
-func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err error) {
-	routes := map[string]route{}
-	reverseProxy := &httputil.ReverseProxy{Director: func(r *http.Request) {}} // director's job is done by redirectMatcher
-	if err := parseRoutes(routes, s.Routes, false); err != nil {
-		return nil, err
-	}
-	if err = parseRoutes(routes, s.RoutesRewrite, true); err != nil {
-		return nil, err
-	}
-	var defaultRouteURL *url.URL
-	if len(s.RouteDefault) > 0 {
-		if defaultRouteURL, err = parseURL(s.RouteDefault); err != nil {
-			return nil, err
-		}
-		logger.Info("default route registered: ", s.RouteDefault)
-	}
-	return func(req *http.Request, rm *mux.RouteMatch) bool {
-		pathPrefix := bytebufferpool.Get()
-		defer bytebufferpool.Put(pathPrefix)
-
-		pathParts := strings.Split(req.URL.Path, "/")
-		for _, pathPart := range pathParts[1:] { // ignore first empty path part. URL must have a trailing slash (already checked)
-			_, _ = pathPrefix.WriteString("/")      // error impossible
-			_, _ = pathPrefix.WriteString(pathPart) // error impossible
-			route, ok := routes[pathPrefix.String()]
-			if !ok {
-				continue
-			}
-			targetPath := req.URL.Path
-			if route.isRewrite {
-				// /grafana-rewrite/foo -> /rewritten/foo
-				targetPath = strings.Replace(req.URL.Path, pathPrefix.String(), route.targetURL.Path, 1)
-			}
-			redirect(req, targetPath, route.targetURL)
-			rm.Handler = reverseProxy
-			return true
-		}
-		if defaultRouteURL != nil {
-			// no match -> redirect to default route if specified
-			targetPath := defaultRouteURL.Path + req.URL.Path
-			redirect(req, targetPath, defaultRouteURL)
-			rm.Handler = reverseProxy
-			return true
-		}
-		return false
-	}, nil
-}
-
-func (s *httpService) registerHandlers(bp *BlobberParams) (err error) {
+func (s *httpService) registerHandlers() (err error) {
 	redirectMatcher, err := s.getRedirectMatcher()
 	if err != nil {
 		return err
 	}
 	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS").Name("router check")
 	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("queues names")
-	if bp != nil {
+	if s.BlobberParams != nil {
 		s.router.Handle(fmt.Sprintf("/api/%s/{%s:[0-9]+}", istructs.AppQName_sys_blobber.String(), wSIDVar),
 			corsHandler(s.blobReadRequestHandler())).
 			Methods("GET").
@@ -320,30 +243,6 @@ func (s *httpService) registerHandlers(bp *BlobberParams) (err error) {
 	return nil
 }
 
-func parseURL(urlStr string) (url *url.URL, err error) {
-	url, err = url.Parse(urlStr)
-	if err != nil {
-		err = fmt.Errorf("target url %s parse failed: %w", urlStr, err)
-	}
-	return
-}
-
-func redirect(req *http.Request, targetPath string, targetURL *url.URL) {
-	if logger.IsDebug() {
-		logger.Debug(fmt.Sprintf("reverse proxy: incoming %s %s%s, redirecting to %s%s", req.Method, req.Host, req.URL, targetURL.Host, targetPath))
-	}
-	req.URL.Path = targetPath
-	req.Host = targetURL.Host
-	req.URL.Scheme = targetURL.Scheme
-	req.URL.Host = targetURL.Host
-	targetQuery := targetURL.RawQuery
-	if targetQuery == "" || req.URL.RawQuery == "" {
-		req.URL.RawQuery = targetQuery + req.URL.RawQuery
-	} else {
-		req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
-	}
-}
-
 // pipeline.IService
 func (s *acmeService) Prepare(work interface{}) error {
 	return nil
@@ -366,172 +265,4 @@ func (s *acmeService) Stop() {
 	if err := s.Shutdown(s.ctx); err != nil {
 		s.Close()
 	}
-}
-
-/*
-curl -G --data-urlencode "payload={\"SubjectLogin\": \"paa\", \"ProjectionKey\":[{\"App\":\"Application\",\"Projection\":\"paa.price\",\"WS\":1}, {\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}]}" https://alpha2.dev.untill.ru/n10n/channel -H "Content-Type: application/json"
-*/
-func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
-	return func(rw http.ResponseWriter, req *http.Request) {
-		var (
-			urlParams createChannelParamsType
-			channel   in10n.ChannelID
-			flusher   http.Flusher
-			err       error
-		)
-		rw.Header().Set("Content-Type", "text/event-stream")
-		rw.Header().Set("Cache-Control", "no-cache")
-		rw.Header().Set("Connection", "keep-alive")
-		jsonParam, ok := req.URL.Query()["payload"]
-		if !ok || len(jsonParam[0]) < 1 {
-			log.Println("Query parameter with payload (SubjectLogin id and ProjectionKey) is missing.")
-			err = errors.New("query parameter with payload (SubjectLogin id and ProjectionKey) is missing")
-			http.Error(rw, err.Error(), http.StatusBadRequest)
-			return
-		}
-		err = json.Unmarshal([]byte(jsonParam[0]), &urlParams)
-		if err != nil {
-			log.Println(err)
-			err = fmt.Errorf("cannot unmarshal input payload %w", err)
-			http.Error(rw, err.Error(), http.StatusBadRequest)
-			return
-		}
-		flusher, ok = rw.(http.Flusher)
-		if !ok {
-			http.Error(rw, "Streaming unsupported!", http.StatusInternalServerError)
-			return
-		}
-		channel, err = s.n10n.NewChannel(urlParams.SubjectLogin, 24*time.Hour)
-		if err != nil {
-			log.Println(err)
-			http.Error(rw, "Error create new channel", http.StatusTooManyRequests)
-			return
-		}
-		if _, err = fmt.Fprintf(rw, "event: channelId\ndata: %s\n\n", channel); err != nil {
-			log.Println("failed to write created channel id to client:", err)
-			return
-		}
-		flusher.Flush()
-		for _, projection := range urlParams.ProjectionKey {
-			err = s.n10n.Subscribe(channel, projection)
-			if err != nil {
-				log.Println(err)
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-		ch := make(chan UpdateUnit)
-		go func() {
-			defer close(ch)
-			s.n10n.WatchChannel(req.Context(), channel, func(projection in10n.ProjectionKey, offset istructs.Offset) {
-				var unit = UpdateUnit{
-					Projection: projection,
-					Offset:     offset,
-				}
-				ch <- unit
-			})
-		}()
-		for req.Context().Err() == nil {
-			var (
-				projection, offset []byte
-			)
-			result, ok := <-ch
-			if !ok {
-				break
-			}
-			projection, err = json.Marshal(&result.Projection)
-			if err == nil {
-				if _, err = fmt.Fprintf(rw, "event: %s\n", projection); err != nil {
-					log.Println("failed to write projection key event to client:", err)
-				}
-			}
-			offset, _ = json.Marshal(&result.Offset) // error impossible
-			if _, err = fmt.Fprintf(rw, "data: %s\n\n", offset); err != nil {
-				log.Println("failed to write projection key offset to client:", err)
-			}
-			flusher.Flush()
-		}
-	}
-}
-
-/*
-curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":[{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}]}" https://alpha2.dev.untill.ru/n10n/subscribe -H "Content-Type: application/json"
-*/
-func (s *httpService) subscribeHandler() http.HandlerFunc {
-	return func(rw http.ResponseWriter, req *http.Request) {
-		var parameters subscriberParamsType
-		err := getJsonPayload(req, &parameters)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusBadRequest)
-		}
-		for _, projection := range parameters.ProjectionKey {
-			err = s.n10n.Subscribe(parameters.Channel, projection)
-			if err != nil {
-				log.Println(err)
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-	}
-}
-
-/*
-curl -G --data-urlencode "payload={\"Channel\": \"a23b2050-b90c-4ed1-adb7-1ecc4f346f2b\", \"ProjectionKey\":[{\"App\":\"Application\",\"Projection\":\"paa.wine_price\",\"WS\":1}]}" https://alpha2.dev.untill.ru/n10n/unsubscribe -H "Content-Type: application/json"
-*/
-func (s *httpService) unSubscribeHandler() http.HandlerFunc {
-	return func(rw http.ResponseWriter, req *http.Request) {
-		var parameters subscriberParamsType
-		err := getJsonPayload(req, &parameters)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusBadRequest)
-		}
-		for _, projection := range parameters.ProjectionKey {
-			err = s.n10n.Unsubscribe(parameters.Channel, projection)
-			if err != nil {
-				log.Println(err)
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-	}
-}
-
-// curl -X POST "http://localhost:3001/n10n/update" -H "Content-Type: application/json" -d "{\"App\":\"Application\",\"Projection\":\"paa.price\",\"WS\":1}"
-// TODO: eliminate after airs-bp3 integration tests implementation
-func (s *httpService) updateHandler() http.HandlerFunc {
-	return func(resp http.ResponseWriter, req *http.Request) {
-		var p in10n.ProjectionKey
-		body, err := ioutil.ReadAll(req.Body)
-		if err != nil {
-			log.Println(err)
-			http.Error(resp, "Error when read request body", http.StatusInternalServerError)
-			return
-		}
-		err = json.Unmarshal(body, &p)
-		if err != nil {
-			log.Println(err)
-			http.Error(resp, "Error when parse request body", http.StatusBadRequest)
-			return
-		}
-
-		params := mux.Vars(req)
-		offset := params["offset"]
-		if off, err := strconv.ParseInt(offset, 10, 64); err == nil {
-			s.n10n.Update(p, istructs.Offset(off))
-		}
-	}
-}
-
-func getJsonPayload(req *http.Request, payload *subscriberParamsType) (err error) {
-	jsonParam, ok := req.URL.Query()["payload"]
-	if !ok || len(jsonParam[0]) < 1 {
-		log.Println("Url parameter with payload (channel id and projection key) is missing")
-		return errors.New("url parameter with payload (channel id and projection key) is missing")
-	}
-	err = json.Unmarshal([]byte(jsonParam[0]), payload)
-	if err != nil {
-		log.Println(err)
-		err = fmt.Errorf("cannot unmarshal input payload %w", err)
-	}
-	return err
 }
