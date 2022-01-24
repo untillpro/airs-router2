@@ -7,10 +7,10 @@ package router2
 import (
 	"context"
 	"crypto/tls"
+	"mime"
 
 	in10n "github.com/heeus/core-in10n"
 	iprocbusmem "github.com/heeus/core-iprocbusmem"
-	istructs "github.com/heeus/core-istructs"
 
 	"fmt"
 	"log"
@@ -46,7 +46,7 @@ func ProvideBP3(ctx context.Context, rp RouterParams, aBusTimeout time.Duration,
 			httpService.blobWG.Add(1)
 			go func(i int) {
 				defer httpService.blobWG.Done()
-				blobMessageHandler(ctx, bp.procBus.ServiceChannel(0, 0), bp.ClusterAppBlobberID, bp.BLOBStorage, bp.BLOBMaxSize)
+				blobMessageHandler(ctx, bp.procBus.ServiceChannel(0, 0), bp.BLOBStorage)
 			}(i)
 		}
 
@@ -205,6 +205,95 @@ func (s *httpService) Stop() {
 	s.blobWG.Wait()
 }
 
+func headerAuth(req *http.Request, r *mux.RouteMatch) bool {
+	authHeader := req.Header.Get("Authorization")
+	if len(authHeader) > 0 {
+		if len(authHeader) < bearerPrefixLen || authHeader[:bearerPrefixLen] != bearerPrefix {
+			r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				writeTextResponse(rw, "not authorized", http.StatusUnauthorized)
+			})
+		}
+		if r.Vars == nil {
+			r.Vars = map[string]string{}
+		}
+		r.Vars[bp3PrincipalToken] = authHeader[bearerPrefixLen:]
+		return true
+	}
+	r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		writeTextResponse(rw, "not auhorized", http.StatusUnauthorized)
+	})
+	return true
+}
+
+func headerOrCookieAuth(req *http.Request, r *mux.RouteMatch) bool {
+	if headerAuth(req, r) {
+		return true
+	}
+	for _, c := range req.Cookies() {
+		if c.Name == "Authorization" {
+			if len(c.Value) < bearerPrefixLen || c.Value[:bearerPrefixLen] != bearerPrefix {
+				r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+					writeTextResponse(rw, "not authorized", http.StatusUnauthorized)
+				})
+			}
+			r.Vars[bp3PrincipalToken] = c.Value[bearerPrefixLen:]
+			return true
+		}
+	}
+	r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		writeTextResponse(rw, "not auhorized", http.StatusUnauthorized)
+	})
+	return true
+}
+
+func contentSpecifyType(req *http.Request, r *mux.RouteMatch) bool {
+	badRequest := func(msg string) {
+		r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			writeTextResponse(rw, msg, http.StatusBadRequest)
+		})
+	}
+
+	values := req.URL.Query()
+	nameQuery, usingQuery := values["name"]
+	mimeTypeQuery, ok := values["mimeType"]
+	if (usingQuery && !ok) || (!usingQuery && ok) {
+		badRequest("both name and mimeType query params must be specified")
+		return true
+	}
+
+	contentType := req.Header.Get("Content-Type")
+	if usingQuery {
+		if len(contentType) > 0 {
+			badRequest("name+mimeType query params and multipart/form-data Content-Type header are mutual exclusive")
+			return true
+		}
+		if r.Vars == nil {
+			r.Vars = map[string]string{}
+		}
+		r.Vars["name"] = nameQuery[0]
+		r.Vars["mimeType"] = mimeTypeQuery[0]
+		return true
+	}
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		badRequest("failed ot parase Content-Type header: " + contentType)
+		return true
+	}
+	if mediaType != "multipart/form-data" {
+		badRequest("unsupported Content-Type: " + contentType)
+		return true
+	}
+	boundary := params["boundary"]
+	if len(boundary) == 0 {
+		badRequest("boundary of multipart/form-data is not specified")
+	}
+	if r.Vars == nil {
+		r.Vars = map[string]string{}
+	}
+	r.Vars["boundary"] = boundary
+	return true
+}
+
 func (s *httpService) registerHandlers() (err error) {
 	redirectMatcher, err := s.getRedirectMatcher()
 	if err != nil {
@@ -213,16 +302,15 @@ func (s *httpService) registerHandlers() (err error) {
 	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS").Name("router check")
 	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("queues names")
 	if s.BlobberParams != nil {
-		s.router.Handle(fmt.Sprintf("/api/%s/{%s:[0-9]+}", istructs.AppQName_sys_blobber.String(), wSIDVar),
-			corsHandler(s.blobReadRequestHandler())).
-			Methods("GET").
-			Queries("principalToken", "{principalToken}", "blobID", "{blobID}").
-			Name("blob read")
-		s.router.Handle(fmt.Sprintf("/api/%s/{%s:[0-9]+}", istructs.AppQName_sys_blobber.String(), wSIDVar),
-			corsHandler(s.blobWriteRequestHandler())).
+		s.router.Handle(fmt.Sprintf("/blob/{%s}/{%s}/{%s:[0-9]+}", bp3AppOwner, bp3AppName, wSIDVar), corsHandler(s.blobWriteRequestHandler())).
 			Methods("POST").
-			Queries("principalToken", "{principalToken}", "name", "{name}", "mimeType", "{mimeType}").
+			MatcherFunc(headerAuth).
+			MatcherFunc(contentSpecifyType).
 			Name("blob write")
+		s.router.Handle(fmt.Sprintf("/blob/{%s}/{%s}/{%s:[0-9]+}/{%s:[0-9]+}", bp3AppOwner, bp3AppName, wSIDVar, bp3BLOBID), corsHandler(s.blobReadRequestHandler())).
+			Methods("GET").
+			MatcherFunc(headerOrCookieAuth).
+			Name("blob read")
 	}
 	if s.RouterParams.UseBP3 {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", bp3AppOwner, bp3AppName,
