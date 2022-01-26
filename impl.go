@@ -40,7 +40,7 @@ var (
 	queueNamesJSON         []byte
 	airsBPPartitionsAmount int                         = 100                 // changes in tests
 	busTimeout             time.Duration               = ibus.DefaultTimeout // changes in tests
-	onResponseWriteFailed  func()                      = nil                 // used in tests
+	onRequestCtxClosed     func()                      = nil                 // used in tests
 	onAfterSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
 )
 
@@ -124,7 +124,7 @@ func writeSectionedResponse(requestCtx context.Context, w http.ResponseWriter, s
 		// possible: ctx is done but on select {sections<-section, <-ctx.Done()} write to sections channel is triggered.
 		// ctx.Done() must have the priority
 		if requestCtx.Err() != nil {
-			return
+			break
 		}
 
 		if !sectionsOpened {
@@ -148,6 +148,10 @@ func writeSectionedResponse(requestCtx context.Context, w http.ResponseWriter, s
 	}
 
 	if requestCtx.Err() != nil {
+		if onRequestCtxClosed != nil {
+			onRequestCtxClosed()
+		}
+		log.Println("client disconnected during sections sending")
 		return
 	}
 
@@ -223,9 +227,6 @@ func writeResponse(w http.ResponseWriter, data string) bool {
 	if _, err := w.Write([]byte(data)); err != nil {
 		stack := debug.Stack()
 		log.Println("failed to write response:", err, "\n", string(stack))
-		if onResponseWriteFailed != nil {
-			onResponseWriteFailed()
-		}
 		return false
 	}
 	w.(http.Flusher).Flush()

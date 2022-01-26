@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"testing"
@@ -312,6 +313,37 @@ func TestStopReadSectionsOnContextDone(t *testing.T) {
 	<-ch
 }
 
+func TestClientDisconnectDuringSections(t *testing.T) {
+	ch := make(chan struct{})
+	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
+		rs := ibus.SendParallelResponse2(ctx, sender)
+		rs.StartMapSection("secMap", []string{"2"})
+		require.Nil(t, rs.SendElement("id1", elem1))
+		<-ch
+		err := rs.ObjectSection("objSec", []string{"3"}, 42)
+		require.Error(t, ibus.ErrNoConsumer, err)
+		rs.Close(nil)
+		ch <- struct{}{}
+	})
+	setUp()
+	defer tearDown()
+
+	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
+	require.Nil(t, err, err)
+	entireResp := []byte{}
+	for string(entireResp) != `{"sections":[{"type":"secMap","path":["2"],"elements":{"id1":{"fld1":"fld1Val"}` {
+		buf := make([]byte, 512)
+		n, err := resp.Body.Read(buf)
+		require.Nil(t, err)
+		entireResp = append(entireResp, buf[:n]...)
+		log.Println(string(entireResp))
+	}
+	resp.Request.Body.Close()
+	resp.Body.Close()
+	ch <- struct{}{}
+	<-ch
+}
+
 func TestFailedToWriteRespone(t *testing.T) {
 	ch := make(chan struct{})
 	failToWrite := make(chan struct{})
@@ -321,17 +353,19 @@ func TestFailedToWriteRespone(t *testing.T) {
 		require.Nil(t, rs.SendElement("id1", elem1))
 		ch <- struct{}{}
 		<-ch
-		require.Error(t, ibus.ErrNoConsumer, rs.ObjectSection("objSec", []string{"3"}, 42))
+		err := rs.ObjectSection("objSec", []string{"3"}, 42)
+		require.Error(t, ibus.ErrNoConsumer, err)
 		rs.Close(nil)
 		ch <- struct{}{}
 	})
-	onResponseWriteFailed = func() {
+	onRequestCtxClosed = func() {
 		failToWrite <- struct{}{}
 	}
 	setUp()
 	defer tearDown()
 
 	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
+	require.Nil(t, err, err)
 	<-ch
 	onAfterSectionWrite = func(w http.ResponseWriter) {
 		// disconnect the client
@@ -345,8 +379,6 @@ func TestFailedToWriteRespone(t *testing.T) {
 		}
 	}
 	ch <- struct{}{}
-	require.Nil(t, err, err)
-	defer resp.Body.Close()
 
 	// wait for fail to write response
 	<-failToWrite
@@ -391,7 +423,7 @@ func tearDown() {
 	airsBPPartitionsAmount = 100
 	os.Args = initialArgs
 	busTimeout = ibus.DefaultTimeout
-	onResponseWriteFailed = nil
+	onRequestCtxClosed = nil
 	onAfterSectionWrite = nil
 	os.Args = initialArgs
 	ibusnats.SetContinuationTimeout(ibus.DefaultTimeout)
