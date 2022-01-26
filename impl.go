@@ -64,10 +64,10 @@ func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap) http
 		// req's BaseContext is router service's context. See service.Start()
 		// router app closing or client disconnected -> req.Context() is done
 		// will create new cancellable context and cancel it if http section send is failed.
-		// newCtx.Done() -> SendRequest2 implementation will notify the handler that the consumer has left us
-		newCtx, cancel := context.WithCancel(req.Context())
+		// requestCtx.Done() -> SendRequest2 implementation will notify the handler that the consumer has left us
+		requestCtx, cancel := context.WithCancel(req.Context())
 		defer cancel() // to avoid context leak
-		res, sections, secErr, err := ibus.SendRequest2(newCtx, queueRequest, busTimeout)
+		res, sections, secErr, err := ibus.SendRequest2(requestCtx, queueRequest, busTimeout)
 		if err != nil {
 			writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
 			return
@@ -79,11 +79,11 @@ func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap) http
 			writeResponse(resp, string(res.Data))
 			return
 		}
-		writeSectionedResponse(resp, sections, secErr, cancel)
+		writeSectionedResponse(requestCtx, resp, sections, secErr, cancel)
 	}
 }
 
-func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection, secErr *error, onSendFailed func()) {
+func writeSectionedResponse(requestCtx context.Context, w http.ResponseWriter, sections <-chan ibus.ISection, secErr *error, onSendFailed func()) {
 	ok := true
 	var iSection ibus.ISection
 	defer func() {
@@ -119,6 +119,11 @@ func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection
 	closer := ""
 	// ctx done -> sections will be closed by ibusnats implementation
 	for iSection = range sections {
+		// possible: ctx is done but on select {sections<-section, <-ctx.Done()} write to sections channel is triggered.
+		// ctx.Done() must have the priority
+		if requestCtx.Err() != nil {
+			return
+		}
 
 		if !sectionsOpened {
 			if ok = writeResponse(w, `"sections":[`); !ok {
@@ -138,6 +143,10 @@ func writeSectionedResponse(w http.ResponseWriter, sections <-chan ibus.ISection
 			// happens in tests
 			onAfterSectionWrite(w)
 		}
+	}
+
+	if requestCtx.Err() != nil {
+		return
 	}
 
 	if *secErr != nil {
