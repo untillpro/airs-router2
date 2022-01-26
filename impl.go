@@ -27,6 +27,8 @@ const (
 	resourceNameVar               = "resource-name"
 	bp3AppOwner                   = "app-owner"
 	bp3AppName                    = "app-name"
+	bp3BLOBID                     = "blobID"
+	bp3PrincipalToken             = "principalToken"
 	DefaultRouterPort             = 8822
 	DefaultRouterConnectionsLimit = 10000
 	//Timeouts should be greater than NATS timeouts to proper use in browser(multiply responses)
