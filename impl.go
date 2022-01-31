@@ -223,6 +223,10 @@ func writeTextResponse(w http.ResponseWriter, msg string, code int) bool {
 	return writeResponse(w, msg)
 }
 
+func writeUnauthroized(rw http.ResponseWriter) {
+	writeTextResponse(rw, "not authorized", http.StatusUnauthorized)
+}
+
 func writeResponse(w http.ResponseWriter, data string) bool {
 	if _, err := w.Write([]byte(data)); err != nil {
 		stack := debug.Stack()
