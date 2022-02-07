@@ -184,7 +184,6 @@ func (s *httpService) Run(ctx context.Context) {
 	s.server.BaseContext = func(l net.Listener) context.Context {
 		return ctx // need to track both client disconnect and app finalize
 	}
-	s.ctx = ctx
 	log.Printf("Starting HTTP server on %s\n", s.server.Addr)
 	if err := s.server.Serve(s.listener); err != http.ErrServerClosed {
 		log.Println("main HTTP server failure: " + err.Error())
@@ -193,7 +192,10 @@ func (s *httpService) Run(ctx context.Context) {
 
 // pipeline.IService
 func (s *httpService) Stop() {
-	if err := s.server.Shutdown(s.ctx); err != nil {
+	// ctx here is used to avoid eternal waiting for close idle connections and listeners
+	// all connections and listeners are closed in the explicit way (they're tracks ctx.Done()) so it is not neccessary to track ctx here
+	if err := s.server.Shutdown(context.Background()); err != nil {
+		log.Println("http server Shutdown() failed: " + err.Error())
 		s.listener.Close()
 		s.server.Close()
 	}
@@ -340,7 +342,6 @@ func (s *acmeService) Run(ctx context.Context) {
 	s.BaseContext = func(l net.Listener) context.Context {
 		return ctx // need to track both client disconnect and app finalize
 	}
-	s.ctx = ctx
 	log.Println("Starting ACME HTTP server on :80")
 	if err := s.ListenAndServe(); err != http.ErrServerClosed {
 		log.Println("ACME HTTP server failure: ", err.Error())
@@ -349,7 +350,9 @@ func (s *acmeService) Run(ctx context.Context) {
 
 // pipeline.IService
 func (s *acmeService) Stop() {
-	if err := s.Shutdown(s.ctx); err != nil {
+	// ctx here is used to avoid eternal waiting for close idle connections and listeners
+	// all connections and listeners are closed in the explicit way so it is not neccessary to track ctx
+	if err := s.Shutdown(context.Background()); err != nil {
 		s.Close()
 	}
 }

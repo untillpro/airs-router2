@@ -5,7 +5,6 @@
 package router2
 
 import (
-	"context"
 	"net"
 	"net/http"
 	"net/url"
@@ -59,7 +58,6 @@ type httpService struct {
 	router   *mux.Router
 	server   *http.Server
 	listener net.Listener
-	ctx      context.Context
 	queues   ibusnats.QueuesPartitionsMap
 	n10n     in10n.IN10nBroker
 	blobWG   sync.WaitGroup
@@ -72,7 +70,6 @@ type httpsService struct {
 
 type acmeService struct {
 	http.Server
-	ctx context.Context
 }
 
 // UpdateUnit TODO: DUPLICATE!!!! change in coew-in10nmem from updateUnit to UpdateUnit for correct marshal/unmarshal
