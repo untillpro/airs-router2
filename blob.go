@@ -209,8 +209,8 @@ func blobWriteMessageHandlerSingle(bbm blobBaseMessage, blobWriteDetails blobWri
 }
 
 // ctx here is HVM context. It used to track HVM shutdown. Blobber will use the request's context
-func blobMessageHandler(ctx context.Context, sc iprocbus.ServiceChannel, blobStorage iblobstorage.IBLOBStorage) {
-	for ctx.Err() == nil {
+func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blobStorage iblobstorage.IBLOBStorage) {
+	for hvmCtx.Err() == nil {
 		select {
 		case mesIntf := <-sc:
 			blobMessage := mesIntf.(blobMessage)
@@ -222,7 +222,7 @@ func blobMessageHandler(ctx context.Context, sc iprocbus.ServiceChannel, blobSto
 			case blobWriteDetailsMultipart:
 				blobWriteMessageHandlerMultipart(blobMessage.blobBaseMessage, blobStorage, blobMessage.header, blobDetails.boundary)
 			}
-		case <-ctx.Done():
+		case <-hvmCtx.Done():
 			return
 		}
 	}

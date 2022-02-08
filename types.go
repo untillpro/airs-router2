@@ -72,7 +72,6 @@ type acmeService struct {
 	http.Server
 }
 
-// UpdateUnit TODO: DUPLICATE!!!! change in coew-in10nmem from updateUnit to UpdateUnit for correct marshal/unmarshal
 type UpdateUnit struct {
 	Projection in10n.ProjectionKey
 	Offset     istructs.Offset

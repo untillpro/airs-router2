@@ -33,7 +33,7 @@ func ProvideBP2(ctx context.Context, rp RouterParams) []interface{} {
 }
 
 // http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
-func ProvideBP3(ctx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas, bp *BlobberParams) []interface{} {
+func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas, bp *BlobberParams) []interface{} {
 	httpService := httpService{
 		RouterParams:  rp,
 		queues:        rp.QueuesPartitions,
@@ -46,7 +46,7 @@ func ProvideBP3(ctx context.Context, rp RouterParams, aBusTimeout time.Duration,
 			httpService.blobWG.Add(1)
 			go func(i int) {
 				defer httpService.blobWG.Done()
-				blobMessageHandler(ctx, bp.procBus.ServiceChannel(0, 0), bp.BLOBStorage)
+				blobMessageHandler(hvmCtx, bp.procBus.ServiceChannel(0, 0), bp.BLOBStorage)
 			}(i)
 		}
 
