@@ -278,9 +278,12 @@ func determineContentType(req *http.Request, r *mux.RouteMatch) bool {
 		r.Vars["mimeType"] = mimeTypeQuery[0]
 		return true
 	}
+	if len(contentType) == 0 {
+		badRequest(`neither "name"+"mimeType" query params nor Content-Type header is not provided`)
+	}
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		badRequest("failed ot parase Content-Type header: " + contentType)
+		badRequest("failed ot parse Content-Type header: " + contentType)
 		return true
 	}
 	if mediaType != "multipart/form-data" {
