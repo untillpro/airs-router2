@@ -280,6 +280,7 @@ func determineContentType(req *http.Request, r *mux.RouteMatch) bool {
 	}
 	if len(contentType) == 0 {
 		badRequest(`neither "name"+"mimeType" query params nor Content-Type header is not provided`)
+		return true
 	}
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
