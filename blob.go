@@ -5,7 +5,6 @@
 package router2
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -161,40 +160,35 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage,
 	defer close(bbm.doneChan)
 
 	r := multipart.NewReader(bbm.req.Body, boundary)
-	var err error
-	var part *multipart.Part
-	blobIDsStr := bytes.NewBufferString("")
-	partNum := 0
-	for part, err = r.NextPart(); err == nil; part, err = r.NextPart() {
-		partNum++
-		contentDisposition := part.Header.Get("Content-Disposition")
-		mediaType, params, err := mime.ParseMediaType(contentDisposition)
-		if err != nil {
-			writeTextResponse(bbm.resp, fmt.Sprintf("failed to parse Content-Disposition of part number %d: %s", partNum, contentDisposition), http.StatusBadRequest)
-		}
-		if mediaType != "form-data" {
-			writeTextResponse(bbm.resp, fmt.Sprintf("unsupported ContentDisposition mediaType of part number %d: %s", partNum, mediaType), http.StatusBadRequest)
-		}
-		contentType := part.Header.Get("Content-Type")
-		if len(contentType) == 0 {
-			contentType = "application/x-binary"
-		}
-
-		blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.principalToken, bbm.resp, bbm.clusterAppBlobberID,
-			params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize))
-		if blobID == 0 {
-			break
-		}
-		blobIDsStr.WriteString(fmt.Sprint(blobID) + ",")
-	}
-
-	if err != io.EOF {
-		writeTextResponse(bbm.resp, err.Error(), http.StatusBadRequest)
+	part, err := r.NextPart()
+	if err == io.EOF {
+		writeTextResponse(bbm.resp, "empty multipart request", http.StatusBadRequest)
 		return
 	}
+	if err != nil {
+		writeTextResponse(bbm.resp, "failed to parse multipart: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	partNum := 1 // will process the first part only
+	contentDisposition := part.Header.Get("Content-Disposition")
+	mediaType, params, err := mime.ParseMediaType(contentDisposition)
+	if err != nil {
+		writeTextResponse(bbm.resp, fmt.Sprintf("failed to parse Content-Disposition of part number %d: %s", partNum, contentDisposition), http.StatusBadRequest)
+	}
+	if mediaType != "form-data" {
+		writeTextResponse(bbm.resp, fmt.Sprintf("unsupported ContentDisposition mediaType of part number %d: %s", partNum, mediaType), http.StatusBadRequest)
+	}
+	contentType := part.Header.Get("Content-Type")
+	if len(contentType) == 0 {
+		contentType = "application/x-binary"
+	}
 
-	blobIDsStr.Truncate(blobIDsStr.Len() - 1)
-	writeTextResponse(bbm.resp, blobIDsStr.String(), http.StatusOK)
+	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.principalToken, bbm.resp, bbm.clusterAppBlobberID,
+		params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize))
+	if blobID == 0 {
+		return // request handled
+	}
+	writeTextResponse(bbm.resp, fmt.Sprint(blobID), http.StatusOK)
 }
 
 func blobWriteMessageHandlerSingle(bbm blobBaseMessage, blobWriteDetails blobWriteDetailsSingle, blobStorage iblobstorage.IBLOBStorage, header map[string][]string) {
