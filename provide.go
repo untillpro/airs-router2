@@ -16,6 +16,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -212,7 +213,7 @@ func headerAuth(req *http.Request, r *mux.RouteMatch) bool {
 	if len(authHeader) > 0 {
 		if len(authHeader) < bearerPrefixLen || authHeader[:bearerPrefixLen] != bearerPrefix {
 			r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				writeUnauthroized(rw)
+				writeUnauthorized(rw)
 			})
 			return true
 		}
@@ -222,10 +223,7 @@ func headerAuth(req *http.Request, r *mux.RouteMatch) bool {
 		r.Vars[bp3PrincipalToken] = authHeader[bearerPrefixLen:]
 		return true
 	}
-	r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		writeUnauthroized(rw)
-	})
-	return true
+	return false
 }
 
 func headerOrCookieAuth(req *http.Request, r *mux.RouteMatch) bool {
@@ -234,17 +232,27 @@ func headerOrCookieAuth(req *http.Request, r *mux.RouteMatch) bool {
 	}
 	for _, c := range req.Cookies() {
 		if c.Name == "Authorization" {
-			if len(c.Value) < bearerPrefixLen || c.Value[:bearerPrefixLen] != bearerPrefix {
+			val, err := url.QueryUnescape(c.Value)
+			if err != nil {
 				r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-					writeUnauthroized(rw)
+					writeTextResponse(rw, "failed to unescape cookie '"+c.Value+"'", http.StatusBadRequest)
+				})
+				return true
+			}
+			if len(val) < bearerPrefixLen || val[:bearerPrefixLen] != bearerPrefix {
+				r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+					writeUnauthorized(rw)
 				})
 			}
-			r.Vars[bp3PrincipalToken] = c.Value[bearerPrefixLen:]
+			if r.Vars == nil {
+				r.Vars = map[string]string{}
+			}
+			r.Vars[bp3PrincipalToken] = val[bearerPrefixLen:]
 			return true
 		}
 	}
 	r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		writeUnauthroized(rw)
+		writeUnauthorized(rw)
 	})
 	return true
 }
@@ -309,7 +317,14 @@ func (s *httpService) registerHandlers() (err error) {
 	if s.BlobberParams != nil {
 		s.router.Handle(fmt.Sprintf("/blob/{%s}/{%s}/{%s:[0-9]+}", bp3AppOwner, bp3AppName, wSIDVar), corsHandler(s.blobWriteRequestHandler())).
 			Methods("POST").
-			MatcherFunc(headerAuth).
+			MatcherFunc(func(r *http.Request, rm *mux.RouteMatch) bool {
+				if !headerAuth(r, rm) {
+					rm.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						writeUnauthorized(rw)
+					})
+				}
+				return true
+			}).
 			MatcherFunc(determineContentType).
 			Name("blob write")
 		s.router.Handle(fmt.Sprintf("/blob/{%s}/{%s}/{%s:[0-9]+}/{%s:[0-9]+}", bp3AppOwner, bp3AppName, wSIDVar, bp3BLOBID), corsHandler(s.blobReadRequestHandler())).
