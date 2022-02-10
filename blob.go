@@ -13,6 +13,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -222,14 +223,14 @@ func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blob
 	}
 }
 
-func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Request, details interface{}) {
+func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Request, principalToken string, details interface{}) {
 	vars := mux.Vars(req)
 	wsid, _ := strconv.ParseInt(vars[wSIDVar], 10, 64) // error impossible, checked by router url rule
 	mes := blobMessage{
 		blobBaseMessage: blobBaseMessage{
 			req:                 req,
 			resp:                resp,
-			principalToken:      vars[bp3PrincipalToken],
+			principalToken:      principalToken,
 			wsid:                istructs.WSID(wsid),
 			doneChan:            make(chan struct{}),
 			appQName:            istructs.NewAppQName(vars[bp3AppOwner], vars[bp3AppName]),
@@ -254,25 +255,125 @@ func (s *httpService) blobReadRequestHandler() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
 		blobID, _ := strconv.ParseInt(vars[bp3BLOBID], 10, 64) // error impossible, checked by router url rule
+		principalToken := headerOrCookieAuth(resp, req)
+		if len(principalToken) == 0 {
+			return
+		}
 		blobReadDetails := blobReadDetails{
 			blobID: istructs.RecordID(blobID),
 		}
-		s.blobRequestHandler(resp, req, blobReadDetails)
+		s.blobRequestHandler(resp, req, principalToken, blobReadDetails)
 	}
 }
 
 func (s *httpService) blobWriteRequestHandler() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
-		vars := mux.Vars(req)
-		if _, ok := vars["name"]; ok {
-			s.blobRequestHandler(resp, req, blobWriteDetailsSingle{
-				name:     vars["name"],
-				mimeType: vars["mimeType"],
+		principalToken, isHandled := headerAuth(resp, req)
+		if len(principalToken) == 0 {
+			if !isHandled {
+				writeUnauthorized(resp)
+			}
+			return
+		}
+
+		name, mimeType, boundary, ok := getBlobParams(resp, req)
+		if !ok {
+			return
+		}
+
+		if len(name) > 0 {
+			s.blobRequestHandler(resp, req, principalToken, blobWriteDetailsSingle{
+				name:     name,
+				mimeType: mimeType,
 			})
 		} else {
-			s.blobRequestHandler(resp, req, blobWriteDetailsMultipart{
-				boundary: vars["boundary"],
+			s.blobRequestHandler(resp, req, principalToken, blobWriteDetailsMultipart{
+				boundary: boundary,
 			})
 		}
 	}
+}
+
+func headerAuth(rw http.ResponseWriter, req *http.Request) (principalToken string, isHandled bool) {
+	authHeader := req.Header.Get("Authorization")
+	if len(authHeader) > 0 {
+		if len(authHeader) < bearerPrefixLen || authHeader[:bearerPrefixLen] != bearerPrefix {
+			writeUnauthorized(rw)
+			return "", true
+		}
+		return authHeader[bearerPrefixLen:], false
+	}
+	return "", false
+}
+
+func headerOrCookieAuth(rw http.ResponseWriter, req *http.Request) (principalToken string) {
+	principalToken, isHandled := headerAuth(rw, req)
+	if isHandled {
+		return ""
+	}
+	if len(principalToken) > 0 {
+		return principalToken
+	}
+	for _, c := range req.Cookies() {
+		if c.Name == "Authorization" {
+			val, err := url.QueryUnescape(c.Value)
+			if err != nil {
+				writeTextResponse(rw, "failed to unescape cookie '"+c.Value+"'", http.StatusBadRequest)
+				return ""
+			}
+			if len(val) < bearerPrefixLen || val[:bearerPrefixLen] != bearerPrefix {
+				writeUnauthorized(rw)
+				return ""
+			}
+			return val[bearerPrefixLen:]
+		}
+	}
+	writeUnauthorized(rw)
+	return ""
+}
+
+// determines BLOBs write kind: name+mimeType in query params -> single BLOB, body is BLOB content, otherwise -> multiple BLOBs, body is multipart/form-data
+func getBlobParams(rw http.ResponseWriter, req *http.Request) (name, mimeType, boundary string, ok bool) {
+	badRequest := func(msg string) {
+		writeTextResponse(rw, msg, http.StatusBadRequest)
+	}
+	values := req.URL.Query()
+	nameQuery, isSingleBLOB := values["name"]
+	mimeTypeQuery, ok := values["mimeType"]
+	if (isSingleBLOB && !ok) || (!isSingleBLOB && ok) {
+		badRequest("both name and mimeType query params must be specified")
+		return
+	}
+
+	contentType := req.Header.Get("Content-Type")
+	if isSingleBLOB {
+		if len(contentType) > 0 {
+			badRequest("name+mimeType query params and multipart/form-data Content-Type header are mutual exclusive")
+			return
+		}
+		name = nameQuery[0]
+		mimeType = mimeTypeQuery[0]
+		ok = true
+		return
+	}
+	if len(contentType) == 0 {
+		badRequest(`neither "name"+"mimeType" query params nor Content-Type header is not provided`)
+		return
+	}
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		badRequest("failed ot parse Content-Type header: " + contentType)
+		return
+	}
+	if mediaType != "multipart/form-data" {
+		badRequest("unsupported Content-Type: " + contentType)
+		return
+	}
+	boundary = params["boundary"]
+	if len(boundary) == 0 {
+		badRequest("boundary of multipart/form-data is not specified")
+		return
+	}
+	ok = true
+	return
 }

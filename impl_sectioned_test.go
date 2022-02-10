@@ -400,7 +400,7 @@ func expectResp(t *testing.T, resp *http.Response, contentType string, statusCod
 	require.Contains(t, resp.Header["Content-Type"][0], contentType, resp.Header)
 	require.Equal(t, []string{"*"}, resp.Header["Access-Control-Allow-Origin"])
 	require.Equal(t, []string{"true"}, resp.Header["Access-Control-Allow-Credentials"])
-	require.Equal(t, []string{"POST, GET, OPTIONS, PUT, PATCH"}, resp.Header["Access-Control-Allow-Methods"])
+	require.Equal(t, []string{"POST, GET, OPTIONS"}, resp.Header["Access-Control-Allow-Methods"])
 	require.Equal(t, []string{"Accept, Content-Type, Content-Length, Accept-Encoding, Authorization"}, resp.Header["Access-Control-Allow-Headers"])
 }
 

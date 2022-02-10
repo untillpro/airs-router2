@@ -7,7 +7,6 @@ package router2
 import (
 	"context"
 	"crypto/tls"
-	"mime"
 
 	in10n "github.com/heeus/core-in10n"
 	iprocbusmem "github.com/heeus/core-iprocbusmem"
@@ -16,7 +15,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -208,105 +206,6 @@ func (s *httpService) Stop() {
 	s.blobWG.Wait()
 }
 
-func headerAuth(req *http.Request, r *mux.RouteMatch) bool {
-	authHeader := req.Header.Get("Authorization")
-	if len(authHeader) > 0 {
-		if len(authHeader) < bearerPrefixLen || authHeader[:bearerPrefixLen] != bearerPrefix {
-			r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				writeUnauthorized(rw)
-			})
-			return true
-		}
-		if r.Vars == nil {
-			r.Vars = map[string]string{}
-		}
-		r.Vars[bp3PrincipalToken] = authHeader[bearerPrefixLen:]
-		return true
-	}
-	return false
-}
-
-func headerOrCookieAuth(req *http.Request, r *mux.RouteMatch) bool {
-	if headerAuth(req, r) {
-		return true
-	}
-	for _, c := range req.Cookies() {
-		if c.Name == "Authorization" {
-			val, err := url.QueryUnescape(c.Value)
-			if err != nil {
-				r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-					writeTextResponse(rw, "failed to unescape cookie '"+c.Value+"'", http.StatusBadRequest)
-				})
-				return true
-			}
-			if len(val) < bearerPrefixLen || val[:bearerPrefixLen] != bearerPrefix {
-				r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-					writeUnauthorized(rw)
-				})
-			}
-			if r.Vars == nil {
-				r.Vars = map[string]string{}
-			}
-			r.Vars[bp3PrincipalToken] = val[bearerPrefixLen:]
-			return true
-		}
-	}
-	r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		writeUnauthorized(rw)
-	})
-	return true
-}
-
-// determines BLOBs write kind: name+mimeType in query params -> single BLOB, body is BLOB content, otherwise -> multiple BLOBs, body is multipart/form-data
-func determineContentType(req *http.Request, r *mux.RouteMatch) bool {
-	badRequest := func(msg string) {
-		r.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			writeTextResponse(rw, msg, http.StatusBadRequest)
-		})
-	}
-	values := req.URL.Query()
-	nameQuery, isSingleBLOB := values["name"]
-	mimeTypeQuery, ok := values["mimeType"]
-	if (isSingleBLOB && !ok) || (!isSingleBLOB && ok) {
-		badRequest("both name and mimeType query params must be specified")
-		return true
-	}
-
-	if r.Vars == nil {
-		r.Vars = map[string]string{}
-	}
-
-	contentType := req.Header.Get("Content-Type")
-	if isSingleBLOB {
-		if len(contentType) > 0 {
-			badRequest("name+mimeType query params and multipart/form-data Content-Type header are mutual exclusive")
-			return true
-		}
-		r.Vars["name"] = nameQuery[0]
-		r.Vars["mimeType"] = mimeTypeQuery[0]
-		return true
-	}
-	if len(contentType) == 0 {
-		badRequest(`neither "name"+"mimeType" query params nor Content-Type header is not provided`)
-		return true
-	}
-	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		badRequest("failed ot parse Content-Type header: " + contentType)
-		return true
-	}
-	if mediaType != "multipart/form-data" {
-		badRequest("unsupported Content-Type: " + contentType)
-		return true
-	}
-	boundary := params["boundary"]
-	if len(boundary) == 0 {
-		badRequest("boundary of multipart/form-data is not specified")
-	}
-	r.Vars["boundary"] = boundary
-	return true
-}
-
 func (s *httpService) registerHandlers() (err error) {
 	redirectMatcher, err := s.getRedirectMatcher()
 	if err != nil {
@@ -322,19 +221,9 @@ func (s *httpService) registerHandlers() (err error) {
 	if s.BlobberParams != nil {
 		s.router.Handle(fmt.Sprintf("/blob/{%s}/{%s}/{%s:[0-9]+}", bp3AppOwner, bp3AppName, wSIDVar), corsHandler(s.blobWriteRequestHandler())).
 			Methods("POST", "OPTIONS").
-			MatcherFunc(func(r *http.Request, rm *mux.RouteMatch) bool {
-				if !headerAuth(r, rm) {
-					rm.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-						writeUnauthorized(rw)
-					})
-				}
-				return true
-			}).
-			MatcherFunc(determineContentType).
 			Name("blob write")
 		s.router.Handle(fmt.Sprintf("/blob/{%s}/{%s}/{%s:[0-9]+}/{%s:[0-9]+}", bp3AppOwner, bp3AppName, wSIDVar, bp3BLOBID), corsHandler(s.blobReadRequestHandler())).
 			Methods("GET", "OPTIONS").
-			MatcherFunc(headerOrCookieAuth).
 			Name("blob read")
 	}
 	if s.RouterParams.UseBP3 {
