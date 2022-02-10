@@ -314,9 +314,14 @@ func (s *httpService) registerHandlers() (err error) {
 	}
 	s.router.HandleFunc("/api/check", corsHandler(checkHandler())).Methods("POST", "OPTIONS").Name("router check")
 	s.router.HandleFunc("/api", corsHandler(queueNamesHandler())).Name("queues names")
+	/*
+		launching app from localhost from browser. Trying to execute POST from web app within browser.
+		Browser sees that hosts differs: from localhost to alpha -> need CORS -> denies POST and executes the same request with OPTIONS header
+		-> need to allow OPTIONS
+	*/
 	if s.BlobberParams != nil {
 		s.router.Handle(fmt.Sprintf("/blob/{%s}/{%s}/{%s:[0-9]+}", bp3AppOwner, bp3AppName, wSIDVar), corsHandler(s.blobWriteRequestHandler())).
-			Methods("POST").
+			Methods("POST", "OPTIONS").
 			MatcherFunc(func(r *http.Request, rm *mux.RouteMatch) bool {
 				if !headerAuth(r, rm) {
 					rm.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -328,7 +333,7 @@ func (s *httpService) registerHandlers() (err error) {
 			MatcherFunc(determineContentType).
 			Name("blob write")
 		s.router.Handle(fmt.Sprintf("/blob/{%s}/{%s}/{%s:[0-9]+}/{%s:[0-9]+}", bp3AppOwner, bp3AppName, wSIDVar, bp3BLOBID), corsHandler(s.blobReadRequestHandler())).
-			Methods("GET").
+			Methods("GET", "OPTIONS").
 			MatcherFunc(headerOrCookieAuth).
 			Name("blob read")
 	}
