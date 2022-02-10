@@ -276,15 +276,15 @@ func (s *httpService) blobWriteRequestHandler() http.HandlerFunc {
 			return
 		}
 
-		name, mimeType, boundary, ok := getBlobParams(resp, req)
+		queryParamName, queryParamMimeType, boundary, ok := getBlobParams(resp, req)
 		if !ok {
 			return
 		}
 
-		if len(name) > 0 {
+		if len(queryParamName) > 0 {
 			s.blobRequestHandler(resp, req, principalToken, blobWriteDetailsSingle{
-				name:     name,
-				mimeType: mimeType,
+				name:     queryParamName,
+				mimeType: queryParamMimeType,
 			})
 		} else {
 			s.blobRequestHandler(resp, req, principalToken, blobWriteDetailsMultipart{
@@ -332,7 +332,8 @@ func headerOrCookieAuth(rw http.ResponseWriter, req *http.Request) (principalTok
 	return ""
 }
 
-// determines BLOBs write kind: name+mimeType in query params -> single BLOB, body is BLOB content, otherwise -> multiple BLOBs, body is multipart/form-data
+// determines BLOBs write kind: name+mimeType in query params -> single BLOB, body is BLOB content, otherwise -> body is multipart/form-data
+// (is multipart/form-data) == len(boundary) > 0
 func getBlobParams(rw http.ResponseWriter, req *http.Request) (name, mimeType, boundary string, ok bool) {
 	badRequest := func(msg string) {
 		writeTextResponse(rw, msg, http.StatusBadRequest)
