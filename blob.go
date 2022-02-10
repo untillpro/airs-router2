@@ -339,16 +339,16 @@ func getBlobParams(rw http.ResponseWriter, req *http.Request) (name, mimeType, b
 	}
 	values := req.URL.Query()
 	nameQuery, isSingleBLOB := values["name"]
-	mimeTypeQuery, ok := values["mimeType"]
-	if (isSingleBLOB && !ok) || (!isSingleBLOB && ok) {
+	mimeTypeQuery, hasMimeType := values["mimeType"]
+	if (isSingleBLOB && !hasMimeType) || (!isSingleBLOB && hasMimeType) {
 		badRequest("both name and mimeType query params must be specified")
 		return
 	}
 
 	contentType := req.Header.Get("Content-Type")
 	if isSingleBLOB {
-		if len(contentType) > 0 {
-			badRequest("name+mimeType query params and multipart/form-data Content-Type header are mutual exclusive")
+		if contentType == "multipart/form-data" {
+			badRequest(`name+mimeType query params and "multipart/form-data" Content-Type header are mutual exclusive`)
 			return
 		}
 		name = nameQuery[0]
