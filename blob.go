@@ -123,7 +123,7 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 		return 0
 	}
 	if blobHelperResp.StatusCode != http.StatusOK {
-		writeTextResponse(resp, "c.sys.uploadBLOBHelper returned error: "+string(blobHelperResp.Data), http.StatusInternalServerError)
+		writeTextResponse(resp, "c.sys.uploadBLOBHelper returned error: "+string(blobHelperResp.Data), blobHelperResp.StatusCode)
 		return 0
 	}
 	cmdResp := map[string]interface{}{}
