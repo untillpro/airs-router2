@@ -163,7 +163,7 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 		return 0
 	}
 	if cudWDocBLOBUpdateResp.StatusCode != http.StatusOK {
-		writeTextResponse(resp, "c.sys.CUD returned error: "+string(blobHelperResp.Data), blobHelperResp.StatusCode)
+		writeTextResponse(resp, "c.sys.CUD returned error: "+string(cudWDocBLOBUpdateResp.Data), cudWDocBLOBUpdateResp.StatusCode)
 		return 0
 	}
 
