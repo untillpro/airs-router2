@@ -153,6 +153,20 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 		writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
 		return 0
 	}
+
+	// set WDoc<sys.BLOB>.status = BLOBStatus_Completed
+	req.Resource = "c.sys.CUD"
+	req.Body = []byte(fmt.Sprintf(`{"cuds":[{"sys.ID": %d,"fields":{"status":%d}}]}`, blobID, iblobstorage.BLOBStatus_Completed))
+	cudWDocBLOBUpdateResp, _, _, err := ibus.SendRequest2(ctx, req, busTimeout)
+	if err != nil {
+		writeTextResponse(resp, "failed to exec c.sys.CUD: "+err.Error(), http.StatusInternalServerError)
+		return 0
+	}
+	if cudWDocBLOBUpdateResp.StatusCode != http.StatusOK {
+		writeTextResponse(resp, "c.sys.CUD returned error: "+string(blobHelperResp.Data), blobHelperResp.StatusCode)
+		return 0
+	}
+
 	return blobID
 }
 
