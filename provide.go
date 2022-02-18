@@ -28,11 +28,11 @@ import (
 )
 
 func ProvideBP2(ctx context.Context, rp RouterParams) []interface{} {
-	return ProvideBP3(ctx, rp, ibus.DefaultTimeout, nil, in10n.Quotas{}, nil)
+	return ProvideBP3(ctx, rp, ibus.DefaultTimeout, nil, in10n.Quotas{}, nil, nil)
 }
 
 // http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
-func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas, bp *BlobberParams) []interface{} {
+func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas, bp *BlobberParams, autocertCache autocert.Cache) []interface{} {
 	httpService := httpService{
 		RouterParams:  rp,
 		queues:        rp.QueuesPartitions,
@@ -66,9 +66,11 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 		*/
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(rp.HTTP01ChallengeHost),
-		Cache:      autocert.DirCache(rp.CertDir),
+		Cache:      autocertCache,
 	}
-
+	if crtMgr.Cache == nil {
+		crtMgr.Cache = autocert.DirCache(rp.CertDir)
+	}
 	httpsService := &httpsService{
 		httpService: &httpService,
 		crtMgr:      crtMgr,
