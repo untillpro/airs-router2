@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	in10n "github.com/heeus/core-in10n"
 	istructs "github.com/heeus/core-istructs"
+	logger "github.com/heeus/core-logger"
 )
 
 /*
@@ -47,6 +48,7 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 			return
 		}
+		logger.Info("n10n subscribeAndWatch: ", urlParams)
 		flusher, ok = rw.(http.Flusher)
 		if !ok {
 			http.Error(rw, "Streaming unsupported!", http.StatusInternalServerError)
@@ -115,6 +117,7 @@ func (s *httpService) subscribeHandler() http.HandlerFunc {
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 		}
+		logger.Info("n10n subscribe: ", parameters)
 		for _, projection := range parameters.ProjectionKey {
 			err = s.n10n.Subscribe(parameters.Channel, projection)
 			if err != nil {
@@ -136,6 +139,7 @@ func (s *httpService) unSubscribeHandler() http.HandlerFunc {
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 		}
+		logger.Info("n10n unsubscribe: ", parameters)
 		for _, projection := range parameters.ProjectionKey {
 			err = s.n10n.Unsubscribe(parameters.Channel, projection)
 			if err != nil {
