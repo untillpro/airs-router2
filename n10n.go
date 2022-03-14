@@ -90,6 +90,7 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			)
 			result, ok := <-ch
 			if !ok {
+				logger.Info("watch done")
 				break
 			}
 			projection, err = json.Marshal(&result.Projection)
