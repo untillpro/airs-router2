@@ -39,7 +39,6 @@ type blobReadDetails struct {
 type blobBaseMessage struct {
 	req                 *http.Request
 	resp                http.ResponseWriter
-	principalToken      string
 	doneChan            chan struct{}
 	wsid                istructs.WSID
 	appQName            istructs.AppQName
@@ -66,15 +65,16 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 		WSID:     int64(bbm.wsid),
 		AppQName: bbm.appQName.String(),
 		Resource: "c.sys.downloadBLOBHelper",
-		Body:     []byte(`{"args": {"principalToken":"` + bbm.principalToken + `"}}`),
+		Header:   bbm.header,
+		Body:     []byte(`{"args": {"principalToken":"1"}}`), // deprecated by required
 	}
 	blobHelperResp, _, _, err := ibus.SendRequest2(bbm.req.Context(), req, busTimeout)
 	if err != nil {
-		writeTextResponse(bbm.resp, "failed to exec c.sys.uploadBLOBHelper: "+err.Error(), http.StatusInternalServerError)
+		writeTextResponse(bbm.resp, "failed to exec c.sys.downloadBLOBHelper: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if blobHelperResp.StatusCode != http.StatusOK {
-		writeTextResponse(bbm.resp, "c.sys.uploadBLOBHelper returned error: "+string(blobHelperResp.Data), http.StatusInternalServerError)
+		writeTextResponse(bbm.resp, "c.sys.downloadBLOBHelper returned error: "+string(blobHelperResp.Data), http.StatusInternalServerError)
 		return
 	}
 
@@ -105,7 +105,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 	}
 }
 
-func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[string][]string, principalToken string, resp http.ResponseWriter,
+func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[string][]string, resp http.ResponseWriter,
 	clusterAppBlobberID istructs.ClusterAppID, blobName, blobMimeType string, blobStorage iblobstorage.IBLOBStorage, body io.ReadCloser,
 	blobMaxSize int64) (blobID int64) {
 	// request HVM for check the principalToken and get a blobID
@@ -114,7 +114,7 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 		WSID:     int64(wsid),
 		AppQName: appQName,
 		Resource: "c.sys.uploadBLOBHelper",
-		Body:     []byte(`{"args": {"principalToken":"` + principalToken + `"}}`),
+		Body:     []byte(`{"args": {"principalToken":"1"}}`), // deprecated by required
 		Header:   header,
 	}
 	blobHelperResp, _, _, err := ibus.SendRequest2(ctx, req, busTimeout)
@@ -197,8 +197,8 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage,
 	if len(contentType) == 0 {
 		contentType = "application/x-binary"
 	}
-
-	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.principalToken, bbm.resp, bbm.clusterAppBlobberID,
+	part.Header["Authorization"] = bbm.header["Authorization"] // add auth header for c.sys.*BLOBHelper
+	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.resp, bbm.clusterAppBlobberID,
 		params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize))
 	if blobID == 0 {
 		return // request handled
@@ -209,7 +209,7 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage,
 func blobWriteMessageHandlerSingle(bbm blobBaseMessage, blobWriteDetails blobWriteDetailsSingle, blobStorage iblobstorage.IBLOBStorage, header map[string][]string) {
 	defer close(bbm.doneChan)
 
-	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), header, bbm.principalToken, bbm.resp, bbm.clusterAppBlobberID, blobWriteDetails.name,
+	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), header, bbm.resp, bbm.clusterAppBlobberID, blobWriteDetails.name,
 		blobWriteDetails.mimeType, blobStorage, bbm.req.Body, int64(bbm.blobMaxSize))
 	if blobID > 0 {
 		writeTextResponse(bbm.resp, fmt.Sprint(blobID), http.StatusOK)
@@ -244,7 +244,6 @@ func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Req
 		blobBaseMessage: blobBaseMessage{
 			req:                 req,
 			resp:                resp,
-			principalToken:      principalToken,
 			wsid:                istructs.WSID(wsid),
 			doneChan:            make(chan struct{}),
 			appQName:            istructs.NewAppQName(vars[bp3AppOwner], vars[bp3AppName]),
@@ -253,6 +252,14 @@ func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Req
 			blobMaxSize:         s.BLOBMaxSize,
 		},
 		blobDetails: details,
+	}
+	if _, ok := mes.blobBaseMessage.header["Authorization"]; !ok {
+		if cookie, err := req.Cookie("Authorization"); err == nil {
+			if val, err := url.QueryUnescape(cookie.Value); err == nil {
+				// authorization token in cookies -> c.sys.downloadBLOBHelper requires it in headers
+				mes.blobBaseMessage.header["Authorization"] = []string{val}
+			}
+		}
 	}
 	if !s.BlobberParams.procBus.Submit(0, 0, mes) {
 		resp.WriteHeader(http.StatusServiceUnavailable)
