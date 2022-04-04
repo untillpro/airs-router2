@@ -74,7 +74,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 		return
 	}
 	if blobHelperResp.StatusCode != http.StatusOK {
-		writeTextResponse(bbm.resp, "c.sys.downloadBLOBHelper returned error: "+string(blobHelperResp.Data), http.StatusInternalServerError)
+		writeTextResponse(bbm.resp, "c.sys.downloadBLOBHelper returned error: "+string(blobHelperResp.Data), blobHelperResp.StatusCode)
 		return
 	}
 
@@ -214,7 +214,6 @@ func blobWriteMessageHandlerSingle(bbm blobBaseMessage, blobWriteDetails blobWri
 	if blobID > 0 {
 		writeTextResponse(bbm.resp, fmt.Sprint(blobID), http.StatusOK)
 	}
-
 }
 
 // ctx here is HVM context. It used to track HVM shutdown. Blobber will use the request's context
@@ -237,7 +236,7 @@ func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blob
 	}
 }
 
-func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Request, principalToken string, details interface{}) {
+func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Request, details interface{}) {
 	vars := mux.Vars(req)
 	wsid, _ := strconv.ParseInt(vars[wSIDVar], 10, 64) // error impossible, checked by router url rule
 	mes := blobMessage{
@@ -283,7 +282,7 @@ func (s *httpService) blobReadRequestHandler() http.HandlerFunc {
 		blobReadDetails := blobReadDetails{
 			blobID: istructs.RecordID(blobID),
 		}
-		s.blobRequestHandler(resp, req, principalToken, blobReadDetails)
+		s.blobRequestHandler(resp, req, blobReadDetails)
 	}
 }
 
@@ -303,12 +302,12 @@ func (s *httpService) blobWriteRequestHandler() http.HandlerFunc {
 		}
 
 		if len(queryParamName) > 0 {
-			s.blobRequestHandler(resp, req, principalToken, blobWriteDetailsSingle{
+			s.blobRequestHandler(resp, req, blobWriteDetailsSingle{
 				name:     queryParamName,
 				mimeType: queryParamMimeType,
 			})
 		} else {
-			s.blobRequestHandler(resp, req, principalToken, blobWriteDetailsMultipart{
+			s.blobRequestHandler(resp, req, blobWriteDetailsMultipart{
 				boundary: boundary,
 			})
 		}
