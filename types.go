@@ -17,6 +17,7 @@ import (
 	istructs "github.com/heeus/core-istructs"
 
 	"github.com/gorilla/mux"
+	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -43,7 +44,7 @@ type BlobberServiceChannels []iprocbusmem.ChannelGroup
 type BLOBMaxSizeType int64
 
 type BlobberParams struct {
-	ServiceChannels        BlobberServiceChannels
+	ServiceChannels        []iprocbusmem.ChannelGroup
 	ClusterAppBlobberID    istructs.ClusterAppID
 	BLOBStorage            iblobstorage.IBLOBStorage
 	BLOBWorkersNum         int
@@ -61,6 +62,7 @@ type httpService struct {
 	queues   ibusnats.QueuesPartitionsMap
 	n10n     in10n.IN10nBroker
 	blobWG   sync.WaitGroup
+	bus      ibus.IBus
 }
 
 type httpsService struct {
@@ -91,3 +93,5 @@ type route struct {
 	targetURL *url.URL
 	isRewrite bool
 }
+
+type implIBusBP2 struct{}

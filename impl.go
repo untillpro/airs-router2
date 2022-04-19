@@ -44,7 +44,7 @@ var (
 	onAfterSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
 )
 
-func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap) http.HandlerFunc {
+func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		if logger.IsDebug() {
 			logger.Debug("serving ", req.Method, " ", req.URL.Path)
@@ -69,7 +69,7 @@ func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap) http
 		// requestCtx.Done() -> SendRequest2 implementation will notify the handler that the consumer has left us
 		requestCtx, cancel := context.WithCancel(req.Context())
 		defer cancel() // to avoid context leak
-		res, sections, secErr, err := ibus.SendRequest2(requestCtx, queueRequest, busTimeout)
+		res, sections, secErr, err := bus.SendRequest2(requestCtx, queueRequest, busTimeout)
 		if err != nil {
 			writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
 			return
@@ -319,4 +319,13 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 		}
 	}
 	return true
+}
+
+func (i *implIBusBP2) SendRequest2(ctx context.Context, request ibus.Request, timeout time.Duration) (res ibus.Response, sections <-chan ibus.ISection, secError *error, err error) {
+	return ibus.SendRequest2(ctx, request, timeout)
+}
+
+func (i *implIBusBP2) SendResponse(sender interface{}, response ibus.Response) {}
+func (i *implIBusBP2) SendParallelResponse2(sender interface{}) (rsender ibus.IResultSenderClosable) {
+	return nil
 }

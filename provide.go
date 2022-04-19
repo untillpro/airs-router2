@@ -28,16 +28,18 @@ import (
 )
 
 func ProvideBP2(ctx context.Context, rp RouterParams) []interface{} {
-	return ProvideBP3(ctx, rp, ibus.DefaultTimeout, nil, in10n.Quotas{}, nil, nil)
+	return ProvideBP3(ctx, rp, ibus.DefaultTimeout, nil, in10n.Quotas{}, nil, nil, &implIBusBP2{})
 }
 
 // http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
-func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas, bp *BlobberParams, autocertCache autocert.Cache) []interface{} {
+func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas, bp *BlobberParams, autocertCache autocert.Cache,
+	bus ibus.IBus) []interface{} {
 	httpService := httpService{
 		RouterParams:  rp,
 		queues:        rp.QueuesPartitions,
 		n10n:          broker,
 		BlobberParams: bp,
+		bus:           bus,
 	}
 	if bp != nil {
 		bp.procBus = iprocbusmem.Provide(bp.ServiceChannels)
@@ -45,7 +47,7 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 			httpService.blobWG.Add(1)
 			go func(i int) {
 				defer httpService.blobWG.Done()
-				blobMessageHandler(hvmCtx, bp.procBus.ServiceChannel(0, 0), bp.BLOBStorage)
+				blobMessageHandler(hvmCtx, bp.procBus.ServiceChannel(0, 0), bp.BLOBStorage, bus)
 			}(i)
 		}
 
@@ -230,11 +232,11 @@ func (s *httpService) registerHandlers() (err error) {
 	}
 	if s.RouterParams.UseBP3 {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", bp3AppOwner, bp3AppName,
-			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
+			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus))).
 			Methods("POST", "PATCH", "OPTIONS").Name("api")
 	} else {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
-			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues))).
+			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus))).
 			Methods("POST", "PATCH", "OPTIONS").Name("api")
 	}
 	s.router.Handle("/n10n/channel", corsHandler(s.subscribeAndWatchHandler())).Methods("GET")

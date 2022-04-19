@@ -56,7 +56,7 @@ func (bm *blobBaseMessage) Release() {
 	bm.req.Body.Close()
 }
 
-func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails, blobStorage iblobstorage.IBLOBStorage) {
+func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails, blobStorage iblobstorage.IBLOBStorage, bus ibus.IBus) {
 	defer close(bbm.doneChan)
 
 	// request to HVM to check the principalToken
@@ -68,7 +68,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 		Header:   bbm.header,
 		Body:     []byte(`{"args": {"principalToken":"1"}}`), // deprecated by required
 	}
-	blobHelperResp, _, _, err := ibus.SendRequest2(bbm.req.Context(), req, busTimeout)
+	blobHelperResp, _, _, err := bus.SendRequest2(bbm.req.Context(), req, busTimeout)
 	if err != nil {
 		writeTextResponse(bbm.resp, "failed to exec c.sys.downloadBLOBHelper: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -107,7 +107,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 
 func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[string][]string, resp http.ResponseWriter,
 	clusterAppBlobberID istructs.ClusterAppID, blobName, blobMimeType string, blobStorage iblobstorage.IBLOBStorage, body io.ReadCloser,
-	blobMaxSize int64) (blobID int64) {
+	blobMaxSize int64, bus ibus.IBus) (blobID int64) {
 	// request HVM for check the principalToken and get a blobID
 	req := ibus.Request{
 		Method:   ibus.HTTPMethodPOST,
@@ -117,7 +117,7 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 		Body:     []byte(`{"args": {"principalToken":"1"}}`), // deprecated by required
 		Header:   header,
 	}
-	blobHelperResp, _, _, err := ibus.SendRequest2(ctx, req, busTimeout)
+	blobHelperResp, _, _, err := bus.SendRequest2(ctx, req, busTimeout)
 	if err != nil {
 		writeTextResponse(resp, "failed to exec c.sys.uploadBLOBHelper: "+err.Error(), http.StatusInternalServerError)
 		return 0
@@ -157,7 +157,7 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 	// set WDoc<sys.BLOB>.status = BLOBStatus_Completed
 	req.Resource = "c.sys.CUD"
 	req.Body = []byte(fmt.Sprintf(`{"cuds":[{"sys.ID": %d,"fields":{"status":%d}}]}`, blobID, iblobstorage.BLOBStatus_Completed))
-	cudWDocBLOBUpdateResp, _, _, err := ibus.SendRequest2(ctx, req, busTimeout)
+	cudWDocBLOBUpdateResp, _, _, err := bus.SendRequest2(ctx, req, busTimeout)
 	if err != nil {
 		writeTextResponse(resp, "failed to exec c.sys.CUD: "+err.Error(), http.StatusInternalServerError)
 		return 0
@@ -171,7 +171,7 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 }
 
 func blobWriteMessageHandlerMultipart(bbm blobBaseMessage,
-	blobStorage iblobstorage.IBLOBStorage, header map[string][]string, boundary string) {
+	blobStorage iblobstorage.IBLOBStorage, header map[string][]string, boundary string, bus ibus.IBus) {
 	defer close(bbm.doneChan)
 
 	r := multipart.NewReader(bbm.req.Body, boundary)
@@ -199,36 +199,37 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage,
 	}
 	part.Header["Authorization"] = bbm.header["Authorization"] // add auth header for c.sys.*BLOBHelper
 	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.resp, bbm.clusterAppBlobberID,
-		params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize))
+		params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize), bus)
 	if blobID == 0 {
 		return // request handled
 	}
 	writeTextResponse(bbm.resp, fmt.Sprint(blobID), http.StatusOK)
 }
 
-func blobWriteMessageHandlerSingle(bbm blobBaseMessage, blobWriteDetails blobWriteDetailsSingle, blobStorage iblobstorage.IBLOBStorage, header map[string][]string) {
+func blobWriteMessageHandlerSingle(bbm blobBaseMessage, blobWriteDetails blobWriteDetailsSingle, blobStorage iblobstorage.IBLOBStorage, header map[string][]string,
+	bus ibus.IBus) {
 	defer close(bbm.doneChan)
 
 	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), header, bbm.resp, bbm.clusterAppBlobberID, blobWriteDetails.name,
-		blobWriteDetails.mimeType, blobStorage, bbm.req.Body, int64(bbm.blobMaxSize))
+		blobWriteDetails.mimeType, blobStorage, bbm.req.Body, int64(bbm.blobMaxSize), bus)
 	if blobID > 0 {
 		writeTextResponse(bbm.resp, fmt.Sprint(blobID), http.StatusOK)
 	}
 }
 
 // ctx here is HVM context. It used to track HVM shutdown. Blobber will use the request's context
-func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blobStorage iblobstorage.IBLOBStorage) {
+func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blobStorage iblobstorage.IBLOBStorage, bus ibus.IBus) {
 	for hvmCtx.Err() == nil {
 		select {
 		case mesIntf := <-sc:
 			blobMessage := mesIntf.(blobMessage)
 			switch blobDetails := blobMessage.blobDetails.(type) {
 			case blobReadDetails:
-				blobReadMessageHandler(blobMessage.blobBaseMessage, blobDetails, blobStorage)
+				blobReadMessageHandler(blobMessage.blobBaseMessage, blobDetails, blobStorage, bus)
 			case blobWriteDetailsSingle:
-				blobWriteMessageHandlerSingle(blobMessage.blobBaseMessage, blobDetails, blobStorage, blobMessage.header)
+				blobWriteMessageHandlerSingle(blobMessage.blobBaseMessage, blobDetails, blobStorage, blobMessage.header, bus)
 			case blobWriteDetailsMultipart:
-				blobWriteMessageHandlerMultipart(blobMessage.blobBaseMessage, blobStorage, blobMessage.header, blobDetails.boundary)
+				blobWriteMessageHandlerMultipart(blobMessage.blobBaseMessage, blobStorage, blobMessage.header, blobDetails.boundary, bus)
 			}
 		case <-hvmCtx.Done():
 			return
@@ -262,7 +263,7 @@ func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Req
 	}
 	if !s.BlobberParams.procBus.Submit(0, 0, mes) {
 		resp.WriteHeader(http.StatusServiceUnavailable)
-		resp.Header().Add("Retry-After", fmt.Sprint(s.RetryAfterSecondsOn503))
+		resp.Header().Add("Retry-After", fmt.Sprint(s.BlobberParams.RetryAfterSecondsOn503))
 		return
 	}
 	select {
@@ -387,7 +388,7 @@ func getBlobParams(rw http.ResponseWriter, req *http.Request) (name, mimeType, b
 		return
 	}
 	if mediaType != "multipart/form-data" {
-		badRequest("unsupported Content-Type: " + contentType)
+		badRequest("name+mimeType query params are not provided -> Content-Type must be mutipart/form-data but actual is " + contentType)
 		return
 	}
 	boundary = params["boundary"]
