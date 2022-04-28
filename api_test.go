@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
 	"github.com/untillpro/godif"
 	"github.com/untillpro/godif/services"
@@ -37,7 +38,7 @@ func TestQueueNames(t *testing.T) {
 	ibusnats.DeclareEmbeddedNATSServer()
 	initialArgs = os.Args
 	os.Args = []string{"appPath"}
-	Declare(context.Background(), "airs-bp")
+	Declare(context.Background(), "airs-bp", ibus.DefaultTimeout)
 	var err error
 	ctx, err = services.ResolveAndStart()
 	require.Nil(t, err, err)

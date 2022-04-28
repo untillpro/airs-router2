@@ -38,13 +38,12 @@ const (
 
 var (
 	queueNamesJSON         []byte
-	airsBPPartitionsAmount int                         = 100                 // changes in tests
-	busTimeout             time.Duration               = ibus.DefaultTimeout // changes in tests
-	onRequestCtxClosed     func()                      = nil                 // used in tests
-	onAfterSectionWrite    func(w http.ResponseWriter) = nil                 // used in tests
+	airsBPPartitionsAmount int                         = 100 // changes in tests
+	onRequestCtxClosed     func()                      = nil // used in tests
+	onAfterSectionWrite    func(w http.ResponseWriter) = nil // used in tests
 )
 
-func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus) http.HandlerFunc {
+func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus, busTimeout time.Duration) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		if logger.IsDebug() {
 			logger.Debug("serving ", req.Method, " ", req.URL.Path)

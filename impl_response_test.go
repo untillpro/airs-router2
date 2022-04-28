@@ -25,10 +25,8 @@ func TestSingleResponseBasic(t *testing.T) {
 		})
 	})
 
-	setUp()
+	setUpWithBusTimeout(100 * time.Millisecond)
 	defer tearDown()
-
-	busTimeout = 100 * time.Millisecond
 
 	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)

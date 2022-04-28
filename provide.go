@@ -27,8 +27,8 @@ import (
 	"golang.org/x/net/netutil"
 )
 
-func ProvideBP2(ctx context.Context, rp RouterParams) []interface{} {
-	return ProvideBP3(ctx, rp, ibus.DefaultTimeout, nil, in10n.Quotas{}, nil, nil, &implIBusBP2{})
+func ProvideBP2(ctx context.Context, rp RouterParams, busTimeout time.Duration) []interface{} {
+	return ProvideBP3(ctx, rp, busTimeout, nil, in10n.Quotas{}, nil, nil, &implIBusBP2{})
 }
 
 // http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
@@ -40,6 +40,7 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 		n10n:          broker,
 		BlobberParams: bp,
 		bus:           bus,
+		busTimeout:    aBusTimeout,
 	}
 	if bp != nil {
 		bp.procBus = iprocbusmem.Provide(bp.ServiceChannels)
@@ -47,12 +48,11 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 			httpService.blobWG.Add(1)
 			go func(i int) {
 				defer httpService.blobWG.Done()
-				blobMessageHandler(hvmCtx, bp.procBus.ServiceChannel(0, 0), bp.BLOBStorage, bus)
+				blobMessageHandler(hvmCtx, bp.procBus.ServiceChannel(0, 0), bp.BLOBStorage, bus, aBusTimeout)
 			}(i)
 		}
 
 	}
-	busTimeout = aBusTimeout
 	if rp.Port != HTTPSPort {
 		return []interface{}{&httpService}
 	}
@@ -158,7 +158,7 @@ func (s *httpsService) Run(ctx context.Context) {
 func (s *httpService) Prepare(work interface{}) (err error) {
 	s.router = mux.NewRouter()
 
-	if err = s.registerHandlers(); err != nil {
+	if err = s.registerHandlers(s.busTimeout); err != nil {
 		return err
 	}
 
@@ -210,7 +210,7 @@ func (s *httpService) Stop() {
 	s.blobWG.Wait()
 }
 
-func (s *httpService) registerHandlers() (err error) {
+func (s *httpService) registerHandlers(busTimeout time.Duration) (err error) {
 	redirectMatcher, err := s.getRedirectMatcher()
 	if err != nil {
 		return err
@@ -232,11 +232,11 @@ func (s *httpService) registerHandlers() (err error) {
 	}
 	if s.RouterParams.UseBP3 {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", bp3AppOwner, bp3AppName,
-			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus))).
+			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus, busTimeout))).
 			Methods("POST", "PATCH", "OPTIONS").Name("api")
 	} else {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
-			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus))).
+			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus, busTimeout))).
 			Methods("POST", "PATCH", "OPTIONS").Name("api")
 	}
 	s.router.Handle("/n10n/channel", corsHandler(s.subscribeAndWatchHandler())).Methods("GET")

@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 	iblobstorage "github.com/heeus/core-iblobstorage"
@@ -56,7 +57,7 @@ func (bm *blobBaseMessage) Release() {
 	bm.req.Body.Close()
 }
 
-func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails, blobStorage iblobstorage.IBLOBStorage, bus ibus.IBus) {
+func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails, blobStorage iblobstorage.IBLOBStorage, bus ibus.IBus, busTimeout time.Duration) {
 	defer close(bbm.doneChan)
 
 	// request to HVM to check the principalToken
@@ -107,7 +108,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 
 func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[string][]string, resp http.ResponseWriter,
 	clusterAppBlobberID istructs.ClusterAppID, blobName, blobMimeType string, blobStorage iblobstorage.IBLOBStorage, body io.ReadCloser,
-	blobMaxSize int64, bus ibus.IBus) (blobID int64) {
+	blobMaxSize int64, bus ibus.IBus, busTimeout time.Duration) (blobID int64) {
 	// request HVM for check the principalToken and get a blobID
 	req := ibus.Request{
 		Method:   ibus.HTTPMethodPOST,
@@ -170,8 +171,8 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 	return blobID
 }
 
-func blobWriteMessageHandlerMultipart(bbm blobBaseMessage,
-	blobStorage iblobstorage.IBLOBStorage, header map[string][]string, boundary string, bus ibus.IBus) {
+func blobWriteMessageHandlerMultipart(bbm blobBaseMessage, blobStorage iblobstorage.IBLOBStorage, header map[string][]string, boundary string,
+	bus ibus.IBus, busTimeout time.Duration) {
 	defer close(bbm.doneChan)
 
 	r := multipart.NewReader(bbm.req.Body, boundary)
@@ -199,7 +200,7 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage,
 	}
 	part.Header["Authorization"] = bbm.header["Authorization"] // add auth header for c.sys.*BLOBHelper
 	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.resp, bbm.clusterAppBlobberID,
-		params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize), bus)
+		params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize), bus, busTimeout)
 	if blobID == 0 {
 		return // request handled
 	}
@@ -207,29 +208,29 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage,
 }
 
 func blobWriteMessageHandlerSingle(bbm blobBaseMessage, blobWriteDetails blobWriteDetailsSingle, blobStorage iblobstorage.IBLOBStorage, header map[string][]string,
-	bus ibus.IBus) {
+	bus ibus.IBus, busTimeout time.Duration) {
 	defer close(bbm.doneChan)
 
 	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), header, bbm.resp, bbm.clusterAppBlobberID, blobWriteDetails.name,
-		blobWriteDetails.mimeType, blobStorage, bbm.req.Body, int64(bbm.blobMaxSize), bus)
+		blobWriteDetails.mimeType, blobStorage, bbm.req.Body, int64(bbm.blobMaxSize), bus, busTimeout)
 	if blobID > 0 {
 		writeTextResponse(bbm.resp, fmt.Sprint(blobID), http.StatusOK)
 	}
 }
 
 // ctx here is HVM context. It used to track HVM shutdown. Blobber will use the request's context
-func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blobStorage iblobstorage.IBLOBStorage, bus ibus.IBus) {
+func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blobStorage iblobstorage.IBLOBStorage, bus ibus.IBus, busTimeout time.Duration) {
 	for hvmCtx.Err() == nil {
 		select {
 		case mesIntf := <-sc:
 			blobMessage := mesIntf.(blobMessage)
 			switch blobDetails := blobMessage.blobDetails.(type) {
 			case blobReadDetails:
-				blobReadMessageHandler(blobMessage.blobBaseMessage, blobDetails, blobStorage, bus)
+				blobReadMessageHandler(blobMessage.blobBaseMessage, blobDetails, blobStorage, bus, busTimeout)
 			case blobWriteDetailsSingle:
-				blobWriteMessageHandlerSingle(blobMessage.blobBaseMessage, blobDetails, blobStorage, blobMessage.header, bus)
+				blobWriteMessageHandlerSingle(blobMessage.blobBaseMessage, blobDetails, blobStorage, blobMessage.header, bus, busTimeout)
 			case blobWriteDetailsMultipart:
-				blobWriteMessageHandlerMultipart(blobMessage.blobBaseMessage, blobStorage, blobMessage.header, blobDetails.boundary, bus)
+				blobWriteMessageHandlerMultipart(blobMessage.blobBaseMessage, blobStorage, blobMessage.header, blobDetails.boundary, bus, busTimeout)
 			}
 		case <-hvmCtx.Done():
 			return

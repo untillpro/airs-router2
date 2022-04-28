@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	iblobstorage "github.com/heeus/core-iblobstorage"
 	in10n "github.com/heeus/core-in10n"
@@ -56,13 +57,14 @@ type BlobberParams struct {
 type httpService struct {
 	RouterParams
 	*BlobberParams
-	router   *mux.Router
-	server   *http.Server
-	listener net.Listener
-	queues   ibusnats.QueuesPartitionsMap
-	n10n     in10n.IN10nBroker
-	blobWG   sync.WaitGroup
-	bus      ibus.IBus
+	router     *mux.Router
+	server     *http.Server
+	listener   net.Listener
+	queues     ibusnats.QueuesPartitionsMap
+	n10n       in10n.IN10nBroker
+	blobWG     sync.WaitGroup
+	bus        ibus.IBus
+	busTimeout time.Duration
 }
 
 type httpsService struct {

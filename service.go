@@ -7,6 +7,7 @@ package router2
 import (
 	"context"
 	"log"
+	"time"
 
 	ibusnats "github.com/untillpro/airs-ibusnats"
 )
@@ -17,6 +18,7 @@ type Service struct {
 	RouterParams
 	QueuePartitions ibusnats.QueuesPartitionsMap
 	srvs            []interface{}
+	busTimeout      time.Duration
 }
 
 type routerKeyType string
@@ -25,7 +27,7 @@ const routerKey = routerKeyType("router")
 
 // Start s.e.
 func (s *Service) Start(ctx context.Context) (context.Context, error) {
-	s.srvs = ProvideBP2(ctx, s.RouterParams)
+	s.srvs = ProvideBP2(ctx, s.RouterParams, s.busTimeout)
 	for _, srvIntf := range s.srvs {
 		// simulate pipeline.ServiceOperator
 		srv := srvIntf.(interface {

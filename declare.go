@@ -7,6 +7,7 @@ package router2
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
@@ -26,7 +27,7 @@ func DeclareEmbeddedRouter(routerSrv Service) {
 	}
 }
 
-func Declare(ctx context.Context, cqn ibusnats.CurrentQueueName) {
+func Declare(ctx context.Context, cqn ibusnats.CurrentQueueName, busTimeout time.Duration) {
 	queues := ibusnats.QueuesPartitionsMap{
 		"airs-bp": airsBPPartitionsAmount,
 	}
@@ -44,11 +45,10 @@ func Declare(ctx context.Context, cqn ibusnats.CurrentQueueName) {
 		ibusnats.Declare(ibusnatsSrv)
 	}
 
-	srvs := ProvideBP2(ctx, params)
 	routerSrv := Service{
 		RouterParams:    params,
-		srvs:            srvs,
 		QueuePartitions: queues,
+		busTimeout:      busTimeout,
 	}
 
 	DeclareEmbeddedRouter(routerSrv)

@@ -166,7 +166,7 @@ func TestContinuationTimeoutError(t *testing.T) {
 		rs.Close(nil)
 	})
 
-	setUp()
+	setUpWithBusTimeout(200 * time.Millisecond)
 
 	defer tearDown()
 	onAfterSectionWrite = func(w http.ResponseWriter) {
@@ -175,7 +175,6 @@ func TestContinuationTimeoutError(t *testing.T) {
 	}
 
 	ibusnats.SetContinuationTimeout(50 * time.Millisecond)
-	busTimeout = 200 * time.Millisecond
 
 	body := []byte("")
 	bodyReader := bytes.NewReader(body)
@@ -193,10 +192,8 @@ func TestSectionedSendResponseError(t *testing.T) {
 		// no response -> nats timeout on requester side
 	})
 
-	setUp()
+	setUpWithBusTimeout(100 * time.Millisecond)
 	defer tearDown()
-
-	busTimeout = 100 * time.Millisecond
 
 	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)
@@ -213,10 +210,8 @@ func TestHandlerPanic(t *testing.T) {
 		panic("test panic")
 	})
 
-	setUp()
+	setUpWithBusTimeout(100 * time.Millisecond)
 	defer tearDown()
-
-	busTimeout = 100 * time.Millisecond
 
 	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
 	require.Nil(t, err, err)
@@ -422,19 +417,18 @@ func tearDown() {
 	services.StopAndReset(ctx)
 	airsBPPartitionsAmount = 100
 	os.Args = initialArgs
-	busTimeout = ibus.DefaultTimeout
 	onRequestCtxClosed = nil
 	onAfterSectionWrite = nil
 	os.Args = initialArgs
 	ibusnats.SetContinuationTimeout(ibus.DefaultTimeout)
 }
 
-func setUp() {
+func setUpWithBusTimeout(busTimeout time.Duration) {
 	airsBPPartitionsAmount = 1
 	ibusnats.DeclareEmbeddedNATSServer()
 	initialArgs = os.Args
 	os.Args = []string{"appPath", "--v", "--ns=" + ibusnats.DefaultEmbeddedNATSServerURL[0]}
-	Declare(context.Background(), "airs-bp")
+	Declare(context.Background(), "airs-bp", busTimeout)
 	godif.Require(&ibus.RequestHandler)
 	godif.Require(&ibus.SendParallelResponse2)
 	godif.Require(&ibus.SendResponse)
@@ -445,4 +439,8 @@ func setUp() {
 		panic(err)
 	}
 	services.SetVerbose(false)
+}
+
+func setUp() {
+	setUpWithBusTimeout(ibus.DefaultTimeout)
 }
