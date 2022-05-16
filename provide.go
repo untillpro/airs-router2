@@ -187,7 +187,7 @@ func (s *httpService) Run(ctx context.Context) {
 	s.server.BaseContext = func(l net.Listener) context.Context {
 		return ctx // need to track both client disconnect and app finalize
 	}
-	log.Printf("Starting HTTP server on %s\n", s.server.Addr)
+	logger.Info("Starting HTTP server on", s.server.Addr)
 	if err := s.server.Serve(s.listener); err != http.ErrServerClosed {
 		log.Println("main HTTP server failure: " + err.Error())
 	}
