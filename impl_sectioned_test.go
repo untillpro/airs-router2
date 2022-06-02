@@ -400,6 +400,7 @@ func expectResp(t *testing.T, resp *http.Response, contentType string, statusCod
 	require.Equal(t, statusCode, resp.StatusCode)
 	require.Contains(t, resp.Header["Content-Type"][0], contentType, resp.Header)
 	require.Equal(t, []string{"*"}, resp.Header["Access-Control-Allow-Origin"])
+	require.Equal(t, []string{"Accept, Content-Type, Content-Length, Accept-Encoding, Authorization"}, resp.Header["Access-Control-Allow-Headers"])
 }
 
 func expectOKRespJSON(t *testing.T, resp *http.Response) {
@@ -415,6 +416,7 @@ func expectEmptyResponse(t *testing.T, resp *http.Response) {
 	_, ok := resp.Header["Content-Type"]
 	require.False(t, ok)
 	require.Equal(t, []string{"*"}, resp.Header["Access-Control-Allow-Origin"])
+	require.Equal(t, []string{"Accept, Content-Type, Content-Length, Accept-Encoding, Authorization"}, resp.Header["Access-Control-Allow-Headers"])
 }
 
 func expectJSONBody(t *testing.T, expectedJSON string, body io.Reader) {
