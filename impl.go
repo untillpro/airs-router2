@@ -75,13 +75,34 @@ func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus 
 		}
 
 		if sections == nil {
-			setContentType(resp, res.ContentType)
+			resp.Header().Set(ContentType, res.ContentType)
 			resp.WriteHeader(res.StatusCode)
 			writeResponse(resp, string(res.Data))
 			return
 		}
 		writeSectionedResponse(requestCtx, resp, sections, secErr, cancel)
 	}
+}
+
+func discardSection(iSection ibus.ISection) {
+	switch t := iSection.(type) {
+	case nil:
+	case ibus.IObjectSection:
+		t.Value()
+	case ibus.IMapSection:
+		for _, _, ok := t.Next(); ok; _, _, ok = t.Next() {
+		}
+	case ibus.IArraySection:
+		for _, ok := t.Next(); ok; _, ok = t.Next() {
+		}
+	}
+}
+
+func startSectionedResponse(w http.ResponseWriter) bool {
+	w.Header().Set(ContentType, "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	return writeResponse(w, "{")
 }
 
 func writeSectionedResponse(requestCtx context.Context, w http.ResponseWriter, sections <-chan ibus.ISection, secErr *error, onSendFailed func()) {
@@ -93,29 +114,15 @@ func writeSectionedResponse(requestCtx context.Context, w http.ResponseWriter, s
 			// consume all pending sections or elems to avoid hanging on ibusnats side
 			// normally should one pending elem or section because ibusnats implementation
 			// will terminate on next elem or section because `onSendFailed()` actually closes the context
-			switch t := iSection.(type) {
-			case nil:
-			case ibus.IObjectSection:
-				t.Value()
-			case ibus.IMapSection:
-				for _, _, ok := t.Next(); ok; _, _, ok = t.Next() {
-				}
-			case ibus.IArraySection:
-				for _, ok := t.Next(); ok; _, ok = t.Next() {
-				}
-			}
-			for range sections {
+			discardSection(iSection)
+			for iSection := range sections {
+				discardSection(iSection)
 			}
 		}
 	}()
 
-	setContentType(w, "application/json")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(http.StatusOK)
-	if ok = writeResponse(w, "{"); !ok {
-		return
-	}
 	sectionsOpened := false
+	sectionedResponseStarted := false
 
 	closer := ""
 	// ctx done -> sections will be closed by ibusnats implementation
@@ -123,7 +130,15 @@ func writeSectionedResponse(requestCtx context.Context, w http.ResponseWriter, s
 		// possible: ctx is done but on select {sections<-section, <-ctx.Done()} write to sections channel is triggered.
 		// ctx.Done() must have the priority
 		if requestCtx.Err() != nil {
+			ok = false
 			break
+		}
+
+		if !sectionedResponseStarted {
+			if ok = startSectionedResponse(w); !ok {
+				return
+			}
+			sectionedResponseStarted = true
 		}
 
 		if !sectionsOpened {
@@ -155,12 +170,19 @@ func writeSectionedResponse(requestCtx context.Context, w http.ResponseWriter, s
 	}
 
 	if *secErr != nil {
+		if !sectionedResponseStarted {
+			if !startSectionedResponse(w) {
+				return
+			}
+		}
 		if sectionsOpened {
 			closer = "],"
 		}
 		writeResponse(w, fmt.Sprintf(`%s"status":%d,"errorDescription":"%s"}`, closer, http.StatusInternalServerError, *secErr))
 	} else {
-		writeResponse(w, fmt.Sprintf(`%s}`, closer))
+		if sectionedResponseStarted {
+			writeResponse(w, fmt.Sprintf(`%s}`, closer))
+		}
 	}
 }
 
@@ -201,7 +223,7 @@ func createRequest(reqMethod string, req *http.Request) (res ibus.Request, err e
 
 func corsHandler(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		setupResponse(w)
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if r.Method == "OPTIONS" {
 			return
 		}
@@ -209,15 +231,8 @@ func corsHandler(h http.Handler) http.HandlerFunc {
 	}
 }
 
-func setupResponse(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
-}
-
 func writeTextResponse(w http.ResponseWriter, msg string, code int) bool {
-	setContentType(w, "text/plain")
+	w.Header().Set(ContentType, "text/plain")
 	w.WriteHeader(code)
 	return writeResponse(w, msg)
 }
@@ -234,10 +249,6 @@ func writeResponse(w http.ResponseWriter, data string) bool {
 	}
 	w.(http.Flusher).Flush()
 	return true
-}
-
-func setContentType(resp http.ResponseWriter, cType string) {
-	resp.Header().Set("Content-Type", cType)
 }
 
 func writeSectionHeader(w http.ResponseWriter, sec ibus.IDataSection) bool {

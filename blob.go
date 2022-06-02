@@ -92,7 +92,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 		if len(state.Error) > 0 {
 			return errors.New(state.Error)
 		}
-		setContentType(bbm.resp, state.Descr.MimeType)
+		bbm.resp.Header().Set(ContentType, state.Descr.MimeType)
 		bbm.resp.Header().Add("Content-Disposition", fmt.Sprintf(`attachment;filename="%s"`, state.Descr.Name))
 		bbm.resp.WriteHeader(http.StatusOK)
 		return nil

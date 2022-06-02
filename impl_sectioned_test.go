@@ -115,7 +115,7 @@ func TestSectionedBasic(t *testing.T) {
 	expectOKRespJSON(t, resp)
 }
 
-func TestSimpleOKSectionedResponse(t *testing.T) {
+func TestEmptySectionedResponse(t *testing.T) {
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
 		rs.Close(nil)
@@ -128,10 +128,7 @@ func TestSimpleOKSectionedResponse(t *testing.T) {
 	require.Nil(t, err, err)
 	defer resp.Body.Close()
 
-	expectedJSON := `{}`
-
-	expectJSONBody(t, expectedJSON, resp.Body)
-	expectOKRespJSON(t, resp)
+	expectEmptyResponse(t, resp)
 }
 
 func TestSimpleErrorSectionedResponse(t *testing.T) {
@@ -210,7 +207,7 @@ func TestHandlerPanic(t *testing.T) {
 		panic("test panic")
 	})
 
-	setUpWithBusTimeout(100 * time.Millisecond)
+	setUp()
 	defer tearDown()
 
 	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
@@ -227,10 +224,10 @@ func TestStopReadSectionsOnClientDisconnect(t *testing.T) {
 	ch := make(chan struct{})
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
-		rs.StartMapSection("secMap", []string{"2"})                         // sent, read by router
-		require.Nil(t, rs.SendElement("id1", elem1))                        // sent, read by router
-		<-ch                                                                // wait for client disconnect
-		require.Error(t, ibus.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
+		rs.StartMapSection("secMap", []string{"2"})                           // sent, read by router
+		require.Nil(t, rs.SendElement("id1", elem1))                          // sent, read by router
+		<-ch                                                                  // wait for client disconnect
+		require.ErrorIs(t, rs.SendElement("id2", elem11), ibus.ErrNoConsumer) // sent but there is nobody to read
 		rs.Close(nil)
 		ch <- struct{}{}
 	})
@@ -270,10 +267,10 @@ func TestStopReadSectionsOnContextDone(t *testing.T) {
 	ch := make(chan struct{})
 	godif.Provide(&ibus.RequestHandler, func(ctx context.Context, sender interface{}, request ibus.Request) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
-		rs.StartMapSection("secMap", []string{"2"})                         // sent, read by router
-		require.Nil(t, rs.SendElement("id1", elem1))                        // sent, read by router
-		<-ch                                                                // wait for context done
-		require.Error(t, ibus.ErrNoConsumer, rs.SendElement("id2", elem11)) // sent but there is nobody to read
+		rs.StartMapSection("secMap", []string{"2"})                           // sent, read by router
+		require.Nil(t, rs.SendElement("id1", elem1))                          // sent, read by router
+		<-ch                                                                  // wait for context done
+		require.ErrorIs(t, rs.SendElement("id2", elem11), ibus.ErrNoConsumer) // sent but there is nobody to read
 		rs.Close(nil)
 		ch <- struct{}{}
 	})
@@ -316,7 +313,7 @@ func TestClientDisconnectDuringSections(t *testing.T) {
 		require.Nil(t, rs.SendElement("id1", elem1))
 		<-ch
 		err := rs.ObjectSection("objSec", []string{"3"}, 42)
-		require.Error(t, ibus.ErrNoConsumer, err)
+		require.ErrorIs(t, err, ibus.ErrNoConsumer)
 		rs.Close(nil)
 		ch <- struct{}{}
 	})
@@ -346,17 +343,22 @@ func TestFailedToWriteRespone(t *testing.T) {
 		rs := ibus.SendParallelResponse2(ctx, sender)
 		rs.StartMapSection("secMap", []string{"2"})
 		require.Nil(t, rs.SendElement("id1", elem1))
+
+		// now let's wait for client disconnect
 		ch <- struct{}{}
 		<-ch
+
+		// next section should be failed with ErrNoConsumer
 		err := rs.ObjectSection("objSec", []string{"3"}, 42)
-		require.Error(t, ibus.ErrNoConsumer, err)
+		require.ErrorIs(t, err, ibus.ErrNoConsumer)
 		rs.Close(nil)
 		ch <- struct{}{}
 	})
 	onRequestCtxClosed = func() {
 		failToWrite <- struct{}{}
 	}
-	setUp()
+
+	setUpWithBusTimeout(time.Hour)
 	defer tearDown()
 
 	resp, err := http.Post("http://127.0.0.1:8822/api/airs-bp/1/somefunc", "application/json", http.NoBody)
@@ -372,6 +374,7 @@ func TestFailedToWriteRespone(t *testing.T) {
 				break
 			}
 		}
+		log.Println()
 	}
 	ch <- struct{}{}
 
@@ -383,27 +386,39 @@ func TestFailedToWriteRespone(t *testing.T) {
 }
 
 func expect500RespPlainText(t *testing.T, resp *http.Response) {
+	t.Helper()
 	expectResp(t, resp, "text/plain", http.StatusInternalServerError)
 }
 
 func expectOKRespPlainText(t *testing.T, resp *http.Response) {
+	t.Helper()
 	expectResp(t, resp, "text/plain", http.StatusOK)
 }
 
 func expectResp(t *testing.T, resp *http.Response, contentType string, statusCode int) {
+	t.Helper()
 	require.Equal(t, statusCode, resp.StatusCode)
 	require.Contains(t, resp.Header["Content-Type"][0], contentType, resp.Header)
 	require.Equal(t, []string{"*"}, resp.Header["Access-Control-Allow-Origin"])
-	require.Equal(t, []string{"true"}, resp.Header["Access-Control-Allow-Credentials"])
-	require.Equal(t, []string{"POST, GET, OPTIONS"}, resp.Header["Access-Control-Allow-Methods"])
-	require.Equal(t, []string{"Accept, Content-Type, Content-Length, Accept-Encoding, Authorization"}, resp.Header["Access-Control-Allow-Headers"])
 }
 
 func expectOKRespJSON(t *testing.T, resp *http.Response) {
+	t.Helper()
 	expectResp(t, resp, "application/json", http.StatusOK)
 }
 
+func expectEmptyResponse(t *testing.T, resp *http.Response) {
+	t.Helper()
+	respBody, err := ioutil.ReadAll(resp.Body)
+	require.Nil(t, err, err)
+	require.Empty(t, string(respBody))
+	_, ok := resp.Header["Content-Type"]
+	require.False(t, ok)
+	require.Equal(t, []string{"*"}, resp.Header["Access-Control-Allow-Origin"])
+}
+
 func expectJSONBody(t *testing.T, expectedJSON string, body io.Reader) {
+	t.Helper()
 	respBody, err := ioutil.ReadAll(body)
 	require.Nil(t, err, err)
 	expected := map[string]interface{}{}

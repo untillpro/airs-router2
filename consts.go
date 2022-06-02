@@ -12,6 +12,7 @@ const (
 	DefaultACMEServerWriteTimeout   = 5 * time.Second
 	subscriptionsCloseCheckInterval = 100 * time.Millisecond
 	bearerPrefix                    = "Bearer "
+	ContentType                     = "Content-Type"
 )
 
 var bearerPrefixLen = len(bearerPrefix)

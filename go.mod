@@ -13,7 +13,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	github.com/untillpro/airs-ibus v0.0.0-20220131142157-995500ee0402
-	github.com/untillpro/airs-ibusnats v0.0.0-20220216112348-ec01eb9f50e7
+	github.com/untillpro/airs-ibusnats v0.0.0-20220602094345-4a16b77c871c
 	github.com/untillpro/godif v0.18.0
 	github.com/valyala/bytebufferpool v1.0.0
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
