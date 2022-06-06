@@ -6,12 +6,14 @@ package router2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -178,7 +180,15 @@ func writeSectionedResponse(requestCtx context.Context, w http.ResponseWriter, s
 		if sectionsOpened {
 			closer = "],"
 		}
-		writeResponse(w, fmt.Sprintf(`%s"status":%d,"errorDescription":"%s"}`, closer, http.StatusInternalServerError, *secErr))
+		var jsonableErr interface{ ToJSON() string }
+		if errors.As(*secErr, &jsonableErr) {
+			jsonErr := jsonableErr.ToJSON()
+			jsonErr = strings.TrimPrefix(jsonErr, "{")
+			jsonErr = strings.TrimSuffix(jsonErr, "}")
+			writeResponse(w, fmt.Sprintf(`%s%s}`, closer, jsonErr))
+		} else {
+			writeResponse(w, fmt.Sprintf(`%s"status":%d,"errorDescription":"%s"}`, closer, http.StatusInternalServerError, *secErr))
+		}
 	} else {
 		if sectionedResponseStarted {
 			writeResponse(w, fmt.Sprintf(`%s}`, closer))
