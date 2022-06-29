@@ -67,8 +67,8 @@ github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5CcY=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/untillpro/airs-ibus v0.0.0-20211018104549-2abc028141d9/go.mod h1:1I4FoKKps86qZfFCh+QjcGFXPlNgYHF68L4L04bAU6k=
-github.com/untillpro/airs-ibus v0.0.0-20220131142157-995500ee0402 h1:Z6JBLs2P3BWwSBdUzqk5pMWCHUjpeJq7x2Dut8veVvk=
-github.com/untillpro/airs-ibus v0.0.0-20220131142157-995500ee0402/go.mod h1:1I4FoKKps86qZfFCh+QjcGFXPlNgYHF68L4L04bAU6k=
+github.com/untillpro/airs-ibus v0.0.0-20220629112149-f3803ccb6e9e h1:vcOavnyNIdFV0LZzmm1D7RDfcmFpBatpfNskooPNYQM=
+github.com/untillpro/airs-ibus v0.0.0-20220629112149-f3803ccb6e9e/go.mod h1:1I4FoKKps86qZfFCh+QjcGFXPlNgYHF68L4L04bAU6k=
 github.com/untillpro/airs-ibusnats v0.0.0-20220602094345-4a16b77c871c h1:SHVDjwkot4RS82P7DSOfLNRRHq92za1KKsmicCvA8hw=
 github.com/untillpro/airs-ibusnats v0.0.0-20220602094345-4a16b77c871c/go.mod h1:BbRgv6P4ro2vXk0xSom0vLTJ7g1Ek9QA7BJMaBNTrmw=
 github.com/untillpro/gochips v1.12.1-0.20191205115612-9cd10d0ac2b3 h1:6FcNUgKOtK6UqrjFGlW80WfrwgLjZPBdpUadFkw3mRw=

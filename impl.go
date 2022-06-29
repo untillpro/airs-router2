@@ -224,6 +224,7 @@ func createRequest(reqMethod string, req *http.Request) (res ibus.Request, err e
 		Header:   req.Header,
 		QueueID:  vars[queueAliasVar],
 		AppQName: vars[bp3AppOwner] + "/" + vars[bp3AppName],
+		Host:     req.Host,
 	}
 	if req.Body != nil && req.Body != http.NoBody {
 		res.Body, err = ioutil.ReadAll(req.Body)

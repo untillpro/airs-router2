@@ -13,6 +13,7 @@ const (
 	subscriptionsCloseCheckInterval = 100 * time.Millisecond
 	bearerPrefix                    = "Bearer "
 	ContentType                     = "Content-Type"
+	localhost                       = "127.0.0.1"
 )
 
 var bearerPrefixLen = len(bearerPrefix)
