@@ -48,7 +48,7 @@ var (
 func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus, busTimeout time.Duration) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		if logger.IsDebug() {
-			logger.Debug("serving ", req.Method, " ", req.URL.Path)
+			logger.Debug("serving ", req)
 		}
 		vars := mux.Vars(req)
 		queueRequest, err := createRequest(req.Method, req)
