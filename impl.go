@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	istructs "github.com/heeus/core-istructs"
 	logger "github.com/heeus/core-logger"
 	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
@@ -45,15 +46,14 @@ var (
 	onAfterSectionWrite    func(w http.ResponseWriter) = nil // used in tests
 )
 
-func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus, busTimeout time.Duration) http.HandlerFunc {
+func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus, busTimeout time.Duration, appsWSAmount map[istructs.AppQName]AppWSAmountType) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		if logger.IsDebug() {
 			logger.Debug("serving ", req.Method, " ", req.URL.Path)
 		}
 		vars := mux.Vars(req)
-		queueRequest, err := createRequest(req.Method, req)
-		if err != nil {
-			log.Println("failed to read body:", err)
+		queueRequest, ok := createRequest(req.Method, req, resp, appsWSAmount)
+		if !ok {
 			return
 		}
 
@@ -212,24 +212,38 @@ func checkHandler() http.HandlerFunc {
 	}
 }
 
-func createRequest(reqMethod string, req *http.Request) (res ibus.Request, err error) {
+func createRequest(reqMethod string, req *http.Request, rw http.ResponseWriter, appsWSAmount map[istructs.AppQName]AppWSAmountType) (res ibus.Request, ok bool) {
 	vars := mux.Vars(req)
-	WSID := vars[wSIDVar]
-	// no need to check to err because of regexp in a handler
-	WSIDNum, _ := strconv.ParseInt(WSID, 10, 64)
+	wsidStr := vars[wSIDVar]
+	wsidInt, _ := strconv.ParseInt(wsidStr, 10, 64) // no need to check to err because of regexp in a handler
+	appQNameStr := vars[bp3AppOwner] + "/" + vars[bp3AppName]
+	wsid := istructs.WSID(wsidInt)
+	if appQName, err := istructs.ParseAppQName(appQNameStr); err == nil {
+		if appWSAmount, ok := appsWSAmount[appQName]; ok {
+			baseWSID := wsid.BaseWSID()
+			if baseWSID < istructs.MaxPseudoBaseWSID {
+				appWSNumber := baseWSID % istructs.WSID(appWSAmount)
+				appWSID := istructs.FirstBaseAppWSID + appWSNumber
+				wsid = istructs.NewWSID(wsid.ClusterID(), appWSID)
+			}
+		}
+	}
 	res = ibus.Request{
 		Method:   ibus.NameToHTTPMethod[reqMethod],
-		WSID:     WSIDNum,
+		WSID:     int64(wsid),
 		Query:    req.URL.Query(),
 		Header:   req.Header,
 		QueueID:  vars[queueAliasVar],
-		AppQName: vars[bp3AppOwner] + "/" + vars[bp3AppName],
+		AppQName: appQNameStr,
 		Host:     req.Host,
 	}
+	var err error
 	if req.Body != nil && req.Body != http.NoBody {
-		res.Body, err = ioutil.ReadAll(req.Body)
+		if res.Body, err = ioutil.ReadAll(req.Body); err != nil {
+			http.Error(rw, "failed to read body", http.StatusInternalServerError)
+		}
 	}
-	return
+	return res, err == nil
 }
 
 func corsHandler(h http.Handler) http.HandlerFunc {

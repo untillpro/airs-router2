@@ -57,14 +57,15 @@ type BlobberParams struct {
 type httpService struct {
 	RouterParams
 	*BlobberParams
-	router     *mux.Router
-	server     *http.Server
-	listener   net.Listener
-	queues     ibusnats.QueuesPartitionsMap
-	n10n       in10n.IN10nBroker
-	blobWG     sync.WaitGroup
-	bus        ibus.IBus
-	busTimeout time.Duration
+	router       *mux.Router
+	server       *http.Server
+	listener     net.Listener
+	queues       ibusnats.QueuesPartitionsMap
+	n10n         in10n.IN10nBroker
+	blobWG       sync.WaitGroup
+	bus          ibus.IBus
+	busTimeout   time.Duration
+	appsWSAmount map[istructs.AppQName]AppWSAmountType
 }
 
 type httpsService struct {
@@ -97,3 +98,5 @@ type route struct {
 }
 
 type implIBusBP2 struct{}
+
+type AppWSAmountType int

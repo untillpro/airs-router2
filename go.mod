@@ -8,7 +8,7 @@ require (
 	github.com/heeus/core-in10n v0.0.0-20211229144130-0259d6fd52f9
 	github.com/heeus/core-iprocbus v0.0.0-20211103075415-810b8e91a7d6
 	github.com/heeus/core-iprocbusmem v0.0.0-20220126114259-f615f4e6c94d
-	github.com/heeus/core-istructs v0.0.0-20220215150427-a46e678dedda
+	github.com/heeus/core-istructs v0.0.0-20220805092723-cf3a50cd5888
 	github.com/heeus/core-logger v0.0.0-20211015110533-1499b5b04842
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0

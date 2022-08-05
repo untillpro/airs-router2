@@ -10,6 +10,7 @@ import (
 
 	in10n "github.com/heeus/core-in10n"
 	iprocbusmem "github.com/heeus/core-iprocbusmem"
+	istructs "github.com/heeus/core-istructs"
 
 	"fmt"
 	"log"
@@ -28,12 +29,12 @@ import (
 )
 
 func ProvideBP2(ctx context.Context, rp RouterParams, busTimeout time.Duration) []interface{} {
-	return ProvideBP3(ctx, rp, busTimeout, nil, in10n.Quotas{}, nil, nil, &implIBusBP2{})
+	return ProvideBP3(ctx, rp, busTimeout, nil, in10n.Quotas{}, nil, nil, &implIBusBP2{}, nil)
 }
 
 // http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
 func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas, bp *BlobberParams, autocertCache autocert.Cache,
-	bus ibus.IBus) []interface{} {
+	bus ibus.IBus, appsWSAmount map[istructs.AppQName]AppWSAmountType) []interface{} {
 	httpService := httpService{
 		RouterParams:  rp,
 		queues:        rp.QueuesPartitions,
@@ -41,6 +42,7 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 		BlobberParams: bp,
 		bus:           bus,
 		busTimeout:    aBusTimeout,
+		appsWSAmount:  appsWSAmount,
 	}
 	if bp != nil {
 		bp.procBus = iprocbusmem.Provide(bp.ServiceChannels)
@@ -158,7 +160,7 @@ func (s *httpsService) Run(ctx context.Context) {
 func (s *httpService) Prepare(work interface{}) (err error) {
 	s.router = mux.NewRouter()
 
-	if err = s.registerHandlers(s.busTimeout); err != nil {
+	if err = s.registerHandlers(s.busTimeout, s.appsWSAmount); err != nil {
 		return err
 	}
 
@@ -214,7 +216,7 @@ func (s *httpService) GetPort() int {
 	return s.listener.Addr().(*net.TCPAddr).Port
 }
 
-func (s *httpService) registerHandlers(busTimeout time.Duration) (err error) {
+func (s *httpService) registerHandlers(busTimeout time.Duration, appsWSAmount map[istructs.AppQName]AppWSAmountType) (err error) {
 	redirectMatcher, err := s.getRedirectMatcher()
 	if err != nil {
 		return err
@@ -236,11 +238,11 @@ func (s *httpService) registerHandlers(busTimeout time.Duration) (err error) {
 	}
 	if s.RouterParams.UseBP3 {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", bp3AppOwner, bp3AppName,
-			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus, busTimeout))).
+			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus, busTimeout, appsWSAmount))).
 			Methods("POST", "PATCH", "OPTIONS").Name("api")
 	} else {
 		s.router.HandleFunc(fmt.Sprintf("/api/{%s}/{%s:[0-9]+}/{%s:[a-zA-Z_/.]+}", queueAliasVar,
-			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus, busTimeout))).
+			wSIDVar, resourceNameVar), corsHandler(partitionHandler(s.queues, s.bus, busTimeout, appsWSAmount))).
 			Methods("POST", "PATCH", "OPTIONS").Name("api")
 	}
 	s.router.Handle("/n10n/channel", corsHandler(s.subscribeAndWatchHandler())).Methods("GET")
