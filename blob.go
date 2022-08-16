@@ -67,7 +67,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 		AppQName: bbm.appQName.String(),
 		Resource: "c.sys.downloadBLOBHelper",
 		Header:   bbm.header,
-		Body:     []byte(`{"args": {"principalToken":"1"}}`), // deprecated by required
+		Body:     []byte(`{}`),
 		Host:     localhost,
 	}
 	blobHelperResp, _, _, err := bus.SendRequest2(bbm.req.Context(), req, busTimeout)
@@ -116,7 +116,7 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 		WSID:     int64(wsid),
 		AppQName: appQName,
 		Resource: "c.sys.uploadBLOBHelper",
-		Body:     []byte(`{"args": {"principalToken":"1"}}`), // deprecated by required
+		Body:     []byte(`{}`),
 		Header:   header,
 		Host:     localhost,
 	}
