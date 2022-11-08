@@ -7,6 +7,8 @@ package router2
 import (
 	"errors"
 	"strings"
+
+	istructs "github.com/heeus/core-istructs"
 )
 
 func ParseRoutes(routes []string, routesMap map[string]string) error {
@@ -18,4 +20,11 @@ func ParseRoutes(routes []string, routesMap map[string]string) error {
 		routesMap[fromTo[0]] = fromTo[1]
 	}
 	return nil
+}
+
+func GetAppWSID(wsid istructs.WSID, appWSAmount AppWSAmountType) istructs.WSID {
+	baseWSID := wsid.BaseWSID()
+	appWSNumber := baseWSID % istructs.WSID(appWSAmount)
+	appWSID := istructs.FirstBaseAppWSID + appWSNumber
+	return istructs.NewWSID(wsid.ClusterID(), appWSID)
 }

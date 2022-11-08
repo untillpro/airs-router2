@@ -222,9 +222,7 @@ func createRequest(reqMethod string, req *http.Request, rw http.ResponseWriter, 
 		if appWSAmount, ok := appsWSAmount[appQName]; ok {
 			baseWSID := wsid.BaseWSID()
 			if baseWSID < istructs.MaxPseudoBaseWSID {
-				appWSNumber := baseWSID % istructs.WSID(appWSAmount)
-				appWSID := istructs.FirstBaseAppWSID + appWSNumber
-				wsid = istructs.NewWSID(wsid.ClusterID(), appWSID)
+				wsid = GetAppWSID(wsid, appWSAmount)
 			}
 		}
 	}
