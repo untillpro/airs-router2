@@ -303,7 +303,7 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 		}
 		isFirst := true
 		closer := "}"
-		// ctx.Done() is tracked by ibusnats implementation: writting to section elem channel -> read here, ctxdone -> close elem channel
+		// ctx.Done() is tracked by ibusnats implementation: writing to section elem channel -> read here, ctxdone -> close elem channel
 		for val, ok := sec.Next(); ok; val, ok = sec.Next() {
 			if isFirst {
 				if !writeResponse(w, fmt.Sprintf(`,"elements":[%s`, string(val))) {
@@ -334,7 +334,7 @@ func writeSection(w http.ResponseWriter, isec ibus.ISection) bool {
 		}
 		isFirst := true
 		closer := "}"
-		// ctx.Done() is tracked by ibusnats implementation: writting to section elem channel -> read here, ctxdone -> close elem channel
+		// ctx.Done() is tracked by ibusnats implementation: writing to section elem channel -> read here, ctxdone -> close elem channel
 		for name, val, ok := sec.Next(); ok; name, val, ok = sec.Next() {
 			if isFirst {
 				if !writeResponse(w, fmt.Sprintf(`,"elements":{%q:%s`, name, string(val))) {

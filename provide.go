@@ -117,7 +117,7 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 
 	// actual for airs-bp3 only
 	fs.StringSliceVar(&routes, "rht", []string{}, "reverse proxy </url-part-after-ip>=<target> mapping")
-	fs.StringSliceVar(&routesRewrite, "rhtr", []string{}, "reverse proxy </url-part-after-ip>=<target> rewritting mapping")
+	fs.StringSliceVar(&routesRewrite, "rhtr", []string{}, "reverse proxy </url-part-after-ip>=<target> rewriting mapping")
 	fs.StringVar(&rp.HTTP01ChallengeHost, "rch", "", "HTTP-01 Challenge host for let's encrypt service. Must be specified if router-port is 443, ignored otherwise")
 	fs.StringVar(&rp.RouteDefault, "rhtd", "", "url to be redirected to if url is unknown")
 	fs.StringVar(&rp.CertDir, "rcd", ".", "SSL certificates dir")
@@ -198,7 +198,7 @@ func (s *httpService) Run(ctx context.Context) {
 // pipeline.IService
 func (s *httpService) Stop() {
 	// ctx here is used to avoid eternal waiting for close idle connections and listeners
-	// all connections and listeners are closed in the explicit way (they're tracks ctx.Done()) so it is not neccessary to track ctx here
+	// all connections and listeners are closed in the explicit way (they're tracks ctx.Done()) so it is not necessary to track ctx here
 	if err := s.server.Shutdown(context.Background()); err != nil {
 		log.Println("http server Shutdown() failed: " + err.Error())
 		s.listener.Close()
@@ -274,7 +274,7 @@ func (s *acmeService) Run(ctx context.Context) {
 // pipeline.IService
 func (s *acmeService) Stop() {
 	// ctx here is used to avoid eternal waiting for close idle connections and listeners
-	// all connections and listeners are closed in the explicit way so it is not neccessary to track ctx
+	// all connections and listeners are closed in the explicit way so it is not necessary to track ctx
 	if err := s.Shutdown(context.Background()); err != nil {
 		s.Close()
 	}
