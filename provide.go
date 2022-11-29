@@ -160,6 +160,9 @@ func (s *httpsService) Run(ctx context.Context) {
 func (s *httpService) Prepare(work interface{}) (err error) {
 	s.router = mux.NewRouter()
 
+	// https://dev.untill.com/projects/#!627072
+	s.router.SkipClean(true)
+
 	if err = s.registerHandlers(s.busTimeout, s.appsWSAmount); err != nil {
 		return err
 	}
