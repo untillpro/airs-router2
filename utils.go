@@ -8,7 +8,7 @@ import (
 	"errors"
 	"strings"
 
-	istructs "github.com/heeus/core-istructs"
+	istructs "github.com/heeus/core/istructs"
 )
 
 func ParseRoutes(routes []string, routesMap map[string]string) error {

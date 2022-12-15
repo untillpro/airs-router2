@@ -20,7 +20,7 @@ import (
 	"github.com/gorilla/mux"
 	iblobstorage "github.com/heeus/core-iblobstorage"
 	iprocbus "github.com/heeus/core-iprocbus"
-	istructs "github.com/heeus/core-istructs"
+	istructs "github.com/heeus/core/istructs"
 	ibus "github.com/untillpro/airs-ibus"
 )
 

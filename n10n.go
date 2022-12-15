@@ -16,8 +16,8 @@ import (
 
 	"github.com/gorilla/mux"
 	in10n "github.com/heeus/core-in10n"
-	istructs "github.com/heeus/core-istructs"
 	logger "github.com/heeus/core-logger"
+	istructs "github.com/heeus/core/istructs"
 )
 
 /*

@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	istructs "github.com/heeus/core-istructs"
 	logger "github.com/heeus/core-logger"
+	istructs "github.com/heeus/core/istructs"
 	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
 	"github.com/valyala/bytebufferpool"

@@ -15,7 +15,7 @@ import (
 	in10n "github.com/heeus/core-in10n"
 	iprocbus "github.com/heeus/core-iprocbus"
 	iprocbusmem "github.com/heeus/core-iprocbusmem"
-	istructs "github.com/heeus/core-istructs"
+	istructs "github.com/heeus/core/istructs"
 
 	"github.com/gorilla/mux"
 	ibus "github.com/untillpro/airs-ibus"
