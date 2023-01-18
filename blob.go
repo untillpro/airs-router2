@@ -65,18 +65,18 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 		Method:   ibus.HTTPMethodPOST,
 		WSID:     int64(bbm.wsid),
 		AppQName: bbm.appQName.String(),
-		Resource: "c.sys.downloadBLOBHelper",
+		Resource: "c.sys.DownloadBLOBHelper",
 		Header:   bbm.header,
 		Body:     []byte(`{}`),
 		Host:     localhost,
 	}
 	blobHelperResp, _, _, err := bus.SendRequest2(bbm.req.Context(), req, busTimeout)
 	if err != nil {
-		writeTextResponse(bbm.resp, "failed to exec c.sys.downloadBLOBHelper: "+err.Error(), http.StatusInternalServerError)
+		writeTextResponse(bbm.resp, "failed to exec c.sys.DownloadBLOBHelper: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if blobHelperResp.StatusCode != http.StatusOK {
-		writeTextResponse(bbm.resp, "c.sys.downloadBLOBHelper returned error: "+string(blobHelperResp.Data), blobHelperResp.StatusCode)
+		writeTextResponse(bbm.resp, "c.sys.DownloadBLOBHelper returned error: "+string(blobHelperResp.Data), blobHelperResp.StatusCode)
 		return
 	}
 
@@ -115,26 +115,26 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 		Method:   ibus.HTTPMethodPOST,
 		WSID:     int64(wsid),
 		AppQName: appQName,
-		Resource: "c.sys.uploadBLOBHelper",
+		Resource: "c.sys.UploadBLOBHelper",
 		Body:     []byte(`{}`),
 		Header:   header,
 		Host:     localhost,
 	}
 	blobHelperResp, _, _, err := bus.SendRequest2(ctx, req, busTimeout)
 	if err != nil {
-		writeTextResponse(resp, "failed to exec c.sys.uploadBLOBHelper: "+err.Error(), http.StatusInternalServerError)
+		writeTextResponse(resp, "failed to exec c.sys.UploadBLOBHelper: "+err.Error(), http.StatusInternalServerError)
 		return 0
 	}
 	if blobHelperResp.StatusCode != http.StatusOK {
-		writeTextResponse(resp, "c.sys.uploadBLOBHelper returned error: "+string(blobHelperResp.Data), blobHelperResp.StatusCode)
+		writeTextResponse(resp, "c.sys.UploadBLOBHelper returned error: "+string(blobHelperResp.Data), blobHelperResp.StatusCode)
 		return 0
 	}
 	cmdResp := map[string]interface{}{}
 	if err := json.Unmarshal(blobHelperResp.Data, &cmdResp); err != nil {
-		writeTextResponse(resp, "failed to json-unmarshal c.sys.uploadBLOBHelper result: "+err.Error(), http.StatusInternalServerError)
+		writeTextResponse(resp, "failed to json-unmarshal c.sys.UploadBLOBHelper result: "+err.Error(), http.StatusInternalServerError)
 		return 0
 	}
-	newIDs := cmdResp["newIDs"].(map[string]interface{})
+	newIDs := cmdResp["NewIDs"].(map[string]interface{})
 
 	blobID = int64(newIDs["1"].(float64))
 	// write the BLOB
@@ -259,7 +259,7 @@ func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Req
 	if _, ok := mes.blobBaseMessage.header["Authorization"]; !ok {
 		if cookie, err := req.Cookie("Authorization"); err == nil {
 			if val, err := url.QueryUnescape(cookie.Value); err == nil {
-				// authorization token in cookies -> c.sys.downloadBLOBHelper requires it in headers
+				// authorization token in cookies -> c.sys.DownloadBLOBHelper requires it in headers
 				mes.blobBaseMessage.header["Authorization"] = []string{val}
 			}
 		}

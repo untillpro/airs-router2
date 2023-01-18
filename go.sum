@@ -5,8 +5,8 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/golang/protobuf v1.4.2 h1:+Z5KGCizgyZCbGh1KZqA0fcLLkwbsjIzS4aV2v7wJX0=
 github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
-github.com/heeus/core v0.0.0-20221215130720-9803243b1e47 h1:uskRu6X5nIlwGOOp2EzCrJFyidU54ZSL+k0KnUR2nYY=
-github.com/heeus/core v0.0.0-20221215130720-9803243b1e47/go.mod h1:MlIfmOZ/bRg6D78wYuADghTnHoJKtYR7wAY2CVwtIRU=
+github.com/heeus/core v0.0.0-20230118080625-e966b0435586 h1:EZhQ56ZLaA6NEBft0ibgc6MYIPo3g15ZLzsaUWftbFU=
+github.com/heeus/core v0.0.0-20230118080625-e966b0435586/go.mod h1:MlIfmOZ/bRg6D78wYuADghTnHoJKtYR7wAY2CVwtIRU=
 github.com/heeus/core-iblobstorage v0.0.0-20221215123931-3560a98d0002 h1:Ofo6OqtJzWZzca2sSIkAL0EnaLnN7p3+r8Zli+UXitA=
 github.com/heeus/core-iblobstorage v0.0.0-20221215123931-3560a98d0002/go.mod h1:hA5cUgG4gTGQZX7lNLKqKYOs28PQQcEwQp2efj5QHmg=
 github.com/heeus/core-in10n v0.0.0-20221215123808-f4ef36ab690e h1:un5fiUhm5o4cd0+1EioL7+/hDEiOL3I2whJf4Lomyyw=
