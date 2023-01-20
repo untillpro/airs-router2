@@ -236,7 +236,7 @@ func (s *httpService) registerHandlers(busTimeout time.Duration, appsWSAmount ma
 			Methods("POST", "OPTIONS").
 			Name("blob write")
 		s.router.Handle(fmt.Sprintf("/blob/{%s}/{%s}/{%s:[0-9]+}/{%s:[0-9]+}", bp3AppOwner, bp3AppName, wSIDVar, bp3BLOBID), corsHandler(s.blobReadRequestHandler())).
-			Methods("GET", "OPTIONS").
+			Methods("POST", "GET", "OPTIONS").
 			Name("blob read")
 	}
 	if s.RouterParams.UseBP3 {
