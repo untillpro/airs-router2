@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -178,35 +179,44 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage, blobStorage iblobstor
 	defer close(bbm.doneChan)
 
 	r := multipart.NewReader(bbm.req.Body, boundary)
-	part, err := r.NextPart()
-	if err == io.EOF {
-		writeTextResponse(bbm.resp, "empty multipart request", http.StatusBadRequest)
-		return
+	var part *multipart.Part
+	var err error
+	blobIDs := []string{}
+	partNum := 0
+	for err == nil {
+		part, err = r.NextPart()
+		if err != nil {
+			if err != io.EOF {
+				writeTextResponse(bbm.resp, "failed to parse multipart: "+err.Error(), http.StatusBadRequest)
+				return
+			} else if partNum == 0 {
+				writeTextResponse(bbm.resp, "empty multipart request", http.StatusBadRequest)
+				return
+			}
+			break
+		}
+		contentDisposition := part.Header.Get("Content-Disposition")
+		mediaType, params, err := mime.ParseMediaType(contentDisposition)
+		if err != nil {
+			writeTextResponse(bbm.resp, fmt.Sprintf("failed to parse Content-Disposition of part number %d: %s", partNum, contentDisposition), http.StatusBadRequest)
+		}
+		if mediaType != "form-data" {
+			writeTextResponse(bbm.resp, fmt.Sprintf("unsupported ContentDisposition mediaType of part number %d: %s", partNum, mediaType), http.StatusBadRequest)
+		}
+		contentType := part.Header.Get("Content-Type")
+		if len(contentType) == 0 {
+			contentType = "application/x-binary"
+		}
+		part.Header["Authorization"] = bbm.header["Authorization"] // add auth header for c.sys.*BLOBHelper
+		blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.resp, bbm.clusterAppBlobberID,
+			params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize), bus, busTimeout)
+		if blobID == 0 {
+			return // request handled
+		}
+		blobIDs = append(blobIDs, fmt.Sprint(blobID))
+		partNum++
 	}
-	if err != nil {
-		writeTextResponse(bbm.resp, "failed to parse multipart: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	partNum := 1 // will process the first part only
-	contentDisposition := part.Header.Get("Content-Disposition")
-	mediaType, params, err := mime.ParseMediaType(contentDisposition)
-	if err != nil {
-		writeTextResponse(bbm.resp, fmt.Sprintf("failed to parse Content-Disposition of part number %d: %s", partNum, contentDisposition), http.StatusBadRequest)
-	}
-	if mediaType != "form-data" {
-		writeTextResponse(bbm.resp, fmt.Sprintf("unsupported ContentDisposition mediaType of part number %d: %s", partNum, mediaType), http.StatusBadRequest)
-	}
-	contentType := part.Header.Get("Content-Type")
-	if len(contentType) == 0 {
-		contentType = "application/x-binary"
-	}
-	part.Header["Authorization"] = bbm.header["Authorization"] // add auth header for c.sys.*BLOBHelper
-	blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.resp, bbm.clusterAppBlobberID,
-		params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize), bus, busTimeout)
-	if blobID == 0 {
-		return // request handled
-	}
-	writeTextResponse(bbm.resp, fmt.Sprint(blobID), http.StatusOK)
+	writeTextResponse(bbm.resp, strings.Join(blobIDs, ","), http.StatusOK)
 }
 
 func blobWriteMessageHandlerSingle(bbm blobBaseMessage, blobWriteDetails blobWriteDetailsSingle, blobStorage iblobstorage.IBLOBStorage, header map[string][]string,
