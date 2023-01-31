@@ -46,7 +46,7 @@ var (
 	onAfterSectionWrite    func(w http.ResponseWriter) = nil // used in tests
 )
 
-func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus, busTimeout time.Duration, appsWSAmount map[istructs.AppQName]AppWSAmountType) http.HandlerFunc {
+func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus, busTimeout time.Duration, appsWSAmount map[istructs.AppQName]istructs.AppWSAmount) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		if logger.IsDebug() {
 			logger.Debug("serving ", req.Method, " ", req.URL.Path)
@@ -212,7 +212,7 @@ func checkHandler() http.HandlerFunc {
 	}
 }
 
-func createRequest(reqMethod string, req *http.Request, rw http.ResponseWriter, appsWSAmount map[istructs.AppQName]AppWSAmountType) (res ibus.Request, ok bool) {
+func createRequest(reqMethod string, req *http.Request, rw http.ResponseWriter, appsWSAmount map[istructs.AppQName]istructs.AppWSAmount) (res ibus.Request, ok bool) {
 	vars := mux.Vars(req)
 	wsidStr := vars[wSIDVar]
 	wsidInt, _ := strconv.ParseInt(wsidStr, 10, 64) // no need to check to err because of regexp in a handler

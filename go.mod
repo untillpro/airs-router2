@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/gorilla/mux v1.8.0
-	github.com/heeus/core v0.0.0-20230118080625-e966b0435586
+	github.com/heeus/core v0.0.0-20230131152603-e9d6239f43d2
 	github.com/heeus/core-iblobstorage v0.0.0-20221215123931-3560a98d0002
 	github.com/heeus/core-in10n v0.0.0-20221215123808-f4ef36ab690e
 	github.com/heeus/core-iprocbus v0.0.0-20211103075415-810b8e91a7d6

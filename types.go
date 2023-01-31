@@ -65,7 +65,7 @@ type httpService struct {
 	blobWG       sync.WaitGroup
 	bus          ibus.IBus
 	busTimeout   time.Duration
-	appsWSAmount map[istructs.AppQName]AppWSAmountType
+	appsWSAmount map[istructs.AppQName]istructs.AppWSAmount
 }
 
 type httpsService struct {
@@ -98,5 +98,3 @@ type route struct {
 }
 
 type implIBusBP2 struct{}
-
-type AppWSAmountType int

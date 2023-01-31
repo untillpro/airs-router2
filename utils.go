@@ -22,7 +22,7 @@ func ParseRoutes(routes []string, routesMap map[string]string) error {
 	return nil
 }
 
-func GetAppWSID(wsid istructs.WSID, appWSAmount AppWSAmountType) istructs.WSID {
+func GetAppWSID(wsid istructs.WSID, appWSAmount istructs.AppWSAmount) istructs.WSID {
 	baseWSID := wsid.BaseWSID()
 	appWSNumber := baseWSID % istructs.WSID(appWSAmount)
 	appWSID := istructs.FirstBaseAppWSID + appWSNumber

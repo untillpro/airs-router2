@@ -34,7 +34,7 @@ func ProvideBP2(ctx context.Context, rp RouterParams, busTimeout time.Duration) 
 
 // http -> return []interface{pipeline.IService(httpService)}, https ->  []interface{pipeline.IService(httpsService), pipeline.IService(acmeService)}
 func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Duration, broker in10n.IN10nBroker, quotas in10n.Quotas, bp *BlobberParams, autocertCache autocert.Cache,
-	bus ibus.IBus, appsWSAmount map[istructs.AppQName]AppWSAmountType) []interface{} {
+	bus ibus.IBus, appsWSAmount map[istructs.AppQName]istructs.AppWSAmount) []interface{} {
 	httpService := httpService{
 		RouterParams:  rp,
 		queues:        rp.QueuesPartitions,
@@ -219,7 +219,7 @@ func (s *httpService) GetPort() int {
 	return s.listener.Addr().(*net.TCPAddr).Port
 }
 
-func (s *httpService) registerHandlers(busTimeout time.Duration, appsWSAmount map[istructs.AppQName]AppWSAmountType) (err error) {
+func (s *httpService) registerHandlers(busTimeout time.Duration, appsWSAmount map[istructs.AppQName]istructs.AppWSAmount) (err error) {
 	redirectMatcher, err := s.getRedirectMatcher()
 	if err != nil {
 		return err
