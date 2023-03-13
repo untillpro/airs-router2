@@ -60,7 +60,6 @@ func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err
 		defer bytebufferpool.Put(pathPrefix)
 
 		pathParts := strings.Split(req.URL.Path, "/")
-		targetPath := req.URL.Path
 		hostNoPort := req.Host
 		if colonPos := strings.Index(hostNoPort, ":"); colonPos > 0 {
 			hostNoPort = hostNoPort[:colonPos]
