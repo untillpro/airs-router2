@@ -75,7 +75,7 @@ func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err
 			if !ok {
 				continue
 			}
-
+			targetPath := req.URL.Path
 			if route.isRewrite {
 				// /grafana-rewrite/foo -> /rewritten/foo
 				targetPath = strings.Replace(targetPath, pathPrefix.String(), route.targetURL.Path, 1)
