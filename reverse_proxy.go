@@ -28,6 +28,7 @@ func parseRoutes(routesURLs map[string]route, routes map[string]string, isRewrit
 		routesURLs[from] = route{
 			targetURL,
 			isRewrite,
+			"",
 		}
 		logger.Info("reverse proxy route registered: ", from, " -> ", to)
 	}
@@ -59,6 +60,14 @@ func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err
 		defer bytebufferpool.Put(pathPrefix)
 
 		pathParts := strings.Split(req.URL.Path, "/")
+		targetPath := req.URL.Path
+		hostNoPort := req.Host
+		if colonPos := strings.Index(hostNoPort, ":"); colonPos > 0 {
+			hostNoPort = hostNoPort[:colonPos]
+		}
+		if targetDomain, ok := s.RouteDomains[hostNoPort]; ok {
+			req.Host = strings.Replace(req.Host, hostNoPort, targetDomain, 1)
+		}
 		for _, pathPart := range pathParts[1:] { // ignore first empty path part. URL must have a trailing slash (already checked)
 			_, _ = pathPrefix.WriteString("/")      // error impossible
 			_, _ = pathPrefix.WriteString(pathPart) // error impossible
@@ -66,10 +75,10 @@ func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err
 			if !ok {
 				continue
 			}
-			targetPath := req.URL.Path
+
 			if route.isRewrite {
 				// /grafana-rewrite/foo -> /rewritten/foo
-				targetPath = strings.Replace(req.URL.Path, pathPrefix.String(), route.targetURL.Path, 1)
+				targetPath = strings.Replace(targetPath, pathPrefix.String(), route.targetURL.Path, 1)
 			}
 			redirect(req, targetPath, route.targetURL)
 			rm.Handler = reverseProxy

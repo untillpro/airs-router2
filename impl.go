@@ -19,6 +19,7 @@ import (
 	"github.com/gorilla/mux"
 	logger "github.com/heeus/core-logger"
 	istructs "github.com/heeus/core/istructs"
+	coreutils "github.com/heeus/core/utils"
 	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
 	"github.com/valyala/bytebufferpool"
@@ -222,7 +223,7 @@ func createRequest(reqMethod string, req *http.Request, rw http.ResponseWriter, 
 		if appWSAmount, ok := appsWSAmount[appQName]; ok {
 			baseWSID := wsid.BaseWSID()
 			if baseWSID < istructs.MaxPseudoBaseWSID {
-				wsid = GetAppWSID(wsid, appWSAmount)
+				wsid = coreutils.GetAppWSID(wsid, appWSAmount)
 			}
 		}
 	}

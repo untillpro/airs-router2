@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/gorilla/mux v1.8.0
-	github.com/heeus/core v0.0.0-20230131152603-e9d6239f43d2
+	github.com/heeus/core v0.0.0-20230313122405-742425737788
 	github.com/heeus/core-iblobstorage v0.0.0-20221215123931-3560a98d0002
 	github.com/heeus/core-in10n v0.0.0-20221215123808-f4ef36ab690e
 	github.com/heeus/core-iprocbus v0.0.0-20211103075415-810b8e91a7d6
@@ -31,7 +31,7 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/untillpro/gochips v1.12.1-0.20191205115612-9cd10d0ac2b3 // indirect
-	golang.org/x/sys v0.0.0-20220209214540-3681064d5158 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
