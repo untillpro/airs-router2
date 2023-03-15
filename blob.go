@@ -22,6 +22,7 @@ import (
 	iblobstorage "github.com/heeus/core-iblobstorage"
 	iprocbus "github.com/heeus/core-iprocbus"
 	istructs "github.com/heeus/core/istructs"
+	coreutils "github.com/heeus/core/utils"
 	ibus "github.com/untillpro/airs-ibus"
 )
 
@@ -207,7 +208,7 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage, blobStorage iblobstor
 		if len(contentType) == 0 {
 			contentType = "application/x-binary"
 		}
-		part.Header["Authorization"] = bbm.header["Authorization"] // add auth header for c.sys.*BLOBHelper
+		part.Header[coreutils.AuthorizationHeader] = bbm.header[coreutils.AuthorizationHeader] // add auth header for c.sys.*BLOBHelper
 		blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.resp, bbm.clusterAppBlobberID,
 			params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize), bus, busTimeout)
 		if blobID == 0 {
@@ -271,11 +272,11 @@ func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Req
 		},
 		blobDetails: details,
 	}
-	if _, ok := mes.blobBaseMessage.header["Authorization"]; !ok {
-		if cookie, err := req.Cookie("Authorization"); err == nil {
+	if _, ok := mes.blobBaseMessage.header[coreutils.AuthorizationHeader]; !ok {
+		if cookie, err := req.Cookie(coreutils.AuthorizationHeader); err == nil {
 			if val, err := url.QueryUnescape(cookie.Value); err == nil {
 				// authorization token in cookies -> c.sys.DownloadBLOBHelper requires it in headers
-				mes.blobBaseMessage.header["Authorization"] = []string{val}
+				mes.blobBaseMessage.header[coreutils.AuthorizationHeader] = []string{val}
 			}
 		}
 	}
@@ -339,7 +340,7 @@ func (s *httpService) blobWriteRequestHandler() http.HandlerFunc {
 }
 
 func headerAuth(rw http.ResponseWriter, req *http.Request) (principalToken string, isHandled bool) {
-	authHeader := req.Header.Get("Authorization")
+	authHeader := req.Header.Get(coreutils.AuthorizationHeader)
 	if len(authHeader) > 0 {
 		if len(authHeader) < bearerPrefixLen || authHeader[:bearerPrefixLen] != bearerPrefix {
 			writeUnauthorized(rw)
@@ -359,7 +360,7 @@ func headerOrCookieAuth(rw http.ResponseWriter, req *http.Request) (principalTok
 		return principalToken
 	}
 	for _, c := range req.Cookies() {
-		if c.Name == "Authorization" {
+		if c.Name == coreutils.AuthorizationHeader {
 			val, err := url.QueryUnescape(c.Value)
 			if err != nil {
 				writeTextResponse(rw, "failed to unescape cookie '"+c.Value+"'", http.StatusBadRequest)
