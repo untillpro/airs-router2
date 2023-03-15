@@ -11,6 +11,7 @@ import (
 	in10n "github.com/heeus/core-in10n"
 	iprocbusmem "github.com/heeus/core-iprocbusmem"
 	istructs "github.com/heeus/core/istructs"
+	coreutils "github.com/heeus/core/utils"
 
 	"fmt"
 	"log"
@@ -69,7 +70,7 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 			поскольку есть квоты на выпуск сертификатов - на количество доменов,  сертификатов в единицу времени и пр.
 		*/
 		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist(rp.HTTP01ChallengeHost),
+		HostPolicy: autocert.HostWhitelist(rp.HTTP01ChallengeHosts...),
 		Cache:      autocertCache,
 	}
 	if crtMgr.Cache == nil {
@@ -118,7 +119,7 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	// actual for airs-bp3 only
 	fs.StringSliceVar(&routes, "rht", []string{}, "reverse proxy </url-part-after-ip>=<target> mapping")
 	fs.StringSliceVar(&routesRewrite, "rhtr", []string{}, "reverse proxy </url-part-after-ip>=<target> rewriting mapping")
-	fs.StringVar(&rp.HTTP01ChallengeHost, "rch", "", "HTTP-01 Challenge host for let's encrypt service. Must be specified if router-port is 443, ignored otherwise")
+	fs.StringSliceVar(&rp.HTTP01ChallengeHosts, "rch", []string{}, "HTTP-01 Challenge host for let's encrypt service. Must be specified if router-port is 443, ignored otherwise")
 	fs.StringVar(&rp.RouteDefault, "rhtd", "", "url to be redirected to if url is unknown")
 	fs.StringVar(&rp.CertDir, "rcd", ".", "SSL certificates dir")
 
@@ -126,10 +127,10 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 	if len(natsServers) > 0 {
 		_ = rp.NATSServers.Set(natsServers) // error impossible
 	}
-	if err := ParseRoutes(routes, rp.Routes); err != nil {
+	if err := coreutils.PairsToMap(routes, rp.Routes); err != nil {
 		panic(err)
 	}
-	if err := ParseRoutes(routesRewrite, rp.RoutesRewrite); err != nil {
+	if err := coreutils.PairsToMap(routesRewrite, rp.RoutesRewrite); err != nil {
 		panic(err)
 	}
 	if isVerbose {

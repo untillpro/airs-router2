@@ -33,12 +33,13 @@ type RouterParams struct {
 	QueuesPartitions ibusnats.QueuesPartitionsMap
 
 	// used in airs-bp3 only
-	UseBP3              bool // impacts on router handlers
-	HTTP01ChallengeHost string
-	CertDir             string
-	RouteDefault        string            // http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
-	Routes              map[string]string // /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
-	RoutesRewrite       map[string]string // /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
+	UseBP3               bool // impacts on router handlers
+	HTTP01ChallengeHosts []string
+	CertDir              string
+	RouteDefault         string            // http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
+	Routes               map[string]string // /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
+	RoutesRewrite        map[string]string // /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
+	RouteDomains         map[string]string // resellerportal.dev.untill.ru=http://resellerportal : https://resellerportal.dev.untill.ru/foo -> http://resellerportal/foo
 }
 
 type BlobberServiceChannels []iprocbusmem.ChannelGroup
@@ -93,8 +94,9 @@ type subscriberParamsType struct {
 }
 
 type route struct {
-	targetURL *url.URL
-	isRewrite bool
+	targetURL  *url.URL
+	isRewrite  bool
+	fromDomain string
 }
 
 type implIBusBP2 struct{}
