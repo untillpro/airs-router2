@@ -172,7 +172,7 @@ func (s *httpService) updateHandler() http.HandlerFunc {
 
 		params := mux.Vars(req)
 		offset := params["offset"]
-		if off, err := strconv.ParseInt(offset, 10, 64); err == nil {
+		if off, err := strconv.ParseInt(offset, parseInt64Base, parseInt64Bits); err == nil {
 			s.n10n.Update(p, istructs.Offset(off))
 		}
 	}

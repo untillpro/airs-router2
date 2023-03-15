@@ -15,8 +15,8 @@ github.com/heeus/core-iprocbus v0.0.0-20221105102555-790258e6ff69 h1:pxo6uvstB7p
 github.com/heeus/core-iprocbus v0.0.0-20221105102555-790258e6ff69/go.mod h1:xkFPnynD6/SVe2lBMODAxmy7voy7z/X2ZggEQeceXHQ=
 github.com/heeus/core-iprocbusmem v0.0.0-20221105102616-ae699781a51c h1:fkTiSyGM+UIDnZQ/CGNb6RB7GOKqRYoSqDdOCKEZ2G4=
 github.com/heeus/core-iprocbusmem v0.0.0-20221105102616-ae699781a51c/go.mod h1:IRttjEVw0ZTEKE7MZBslobncqzGybYUeBTzgoijXEo4=
-github.com/klauspost/compress v1.16.0 h1:iULayQNOReoYUe+1qtKOqw9CwJv3aNQu8ivo7lw1HU4=
-github.com/klauspost/compress v1.16.0/go.mod h1:ntbaceVETuRiXiv4DpjP66DpAtAGkEQskQzEyD//IeE=
+github.com/klauspost/compress v1.16.3 h1:XuJt9zzcnaz6a16/OU53ZjWp/v7/42WcR5t2a0PcNQY=
+github.com/klauspost/compress v1.16.3/go.mod h1:ntbaceVETuRiXiv4DpjP66DpAtAGkEQskQzEyD//IeE=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=

@@ -14,6 +14,8 @@ const (
 	bearerPrefix                    = "Bearer "
 	ContentType                     = "Content-Type"
 	localhost                       = "127.0.0.1"
+	parseInt64Base                  = 10
+	parseInt64Bits                  = 64
 )
 
 var bearerPrefixLen = len(bearerPrefix)

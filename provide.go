@@ -49,10 +49,10 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 		bp.procBus = iprocbusmem.Provide(bp.ServiceChannels)
 		for i := 0; i < bp.BLOBWorkersNum; i++ {
 			httpService.blobWG.Add(1)
-			go func(i int) {
+			go func() {
 				defer httpService.blobWG.Done()
 				blobMessageHandler(hvmCtx, bp.procBus.ServiceChannel(0, 0), bp.BLOBStorage, bus, aBusTimeout)
-			}(i)
+			}()
 		}
 
 	}
@@ -144,7 +144,7 @@ func (s *httpsService) Prepare(work interface{}) error {
 		return err
 	}
 
-	s.server.TLSConfig = &tls.Config{GetCertificate: s.crtMgr.GetCertificate}
+	s.server.TLSConfig = &tls.Config{GetCertificate: s.crtMgr.GetCertificate, MinVersion: tls.VersionTLS13}
 	return nil
 }
 

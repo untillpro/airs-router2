@@ -174,7 +174,7 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 	return blobID
 }
 
-func blobWriteMessageHandlerMultipart(bbm blobBaseMessage, blobStorage iblobstorage.IBLOBStorage, header map[string][]string, boundary string,
+func blobWriteMessageHandlerMultipart(bbm blobBaseMessage, blobStorage iblobstorage.IBLOBStorage, boundary string,
 	bus ibus.IBus, busTimeout time.Duration) {
 	defer close(bbm.doneChan)
 
@@ -242,7 +242,7 @@ func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blob
 			case blobWriteDetailsSingle:
 				blobWriteMessageHandlerSingle(blobMessage.blobBaseMessage, blobDetails, blobStorage, blobMessage.header, bus, busTimeout)
 			case blobWriteDetailsMultipart:
-				blobWriteMessageHandlerMultipart(blobMessage.blobBaseMessage, blobStorage, blobMessage.header, blobDetails.boundary, bus, busTimeout)
+				blobWriteMessageHandlerMultipart(blobMessage.blobBaseMessage, blobStorage, blobDetails.boundary, bus, busTimeout)
 			}
 		case <-hvmCtx.Done():
 			return
@@ -252,7 +252,12 @@ func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blob
 
 func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Request, details interface{}) {
 	vars := mux.Vars(req)
-	wsid, _ := strconv.ParseInt(vars[wSIDVar], 10, 64) // error impossible, checked by router url rule
+	wsid, err := strconv.ParseInt(vars[wSIDVar], parseInt64Base, parseInt64Bits)
+	if err != nil {
+		// impossible, checked by router url rule
+		// notest
+		panic(err)
+	}
 	mes := blobMessage{
 		blobBaseMessage: blobBaseMessage{
 			req:                 req,
@@ -288,7 +293,12 @@ func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Req
 func (s *httpService) blobReadRequestHandler() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
-		blobID, _ := strconv.ParseInt(vars[bp3BLOBID], 10, 64) // error impossible, checked by router url rule
+		blobID, err := strconv.ParseInt(vars[bp3BLOBID], parseInt64Base, parseInt64Bits)
+		if err != nil {
+			// impossible, checked by router url rule
+			// notest
+			panic(err)
+		}
 		principalToken := headerOrCookieAuth(resp, req)
 		if len(principalToken) == 0 {
 			return
@@ -409,6 +419,5 @@ func getBlobParams(rw http.ResponseWriter, req *http.Request) (name, mimeType, b
 		badRequest("boundary of multipart/form-data is not specified")
 		return
 	}
-	ok = true
-	return
+	return name, mimeType, boundary, true
 }
