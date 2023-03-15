@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	logger "github.com/heeus/core-logger"
 	flag "github.com/spf13/pflag"
 	ibus "github.com/untillpro/airs-ibus"
+	"github.com/untillpro/goutils/logger"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
 )
@@ -90,9 +90,9 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 		},
 	}
 	acmeServiceHadler := crtMgr.HTTPHandler(nil)
-	if logger.IsDebug() {
+	if logger.IsVerbose() {
 		acmeService.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			logger.Debug("acme server request:", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
+			logger.Verbose("acme server request:", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
 			acmeServiceHadler.ServeHTTP(rw, r)
 		})
 	} else {
@@ -133,7 +133,7 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 		panic(err)
 	}
 	if isVerbose {
-		logger.SetLogLevel(logger.LogLevelDebug)
+		logger.SetLogLevel(logger.LogLevelVerbose)
 	}
 	return rp
 }

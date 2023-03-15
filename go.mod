@@ -9,12 +9,12 @@ require (
 	github.com/heeus/core-in10n v0.0.0-20221215123808-f4ef36ab690e
 	github.com/heeus/core-iprocbus v0.0.0-20211103075415-810b8e91a7d6
 	github.com/heeus/core-iprocbusmem v0.0.0-20220126114259-f615f4e6c94d
-	github.com/heeus/core-logger v0.0.0-20220724102610-98c795221628
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/untillpro/airs-ibus v0.0.0-20220629112149-f3803ccb6e9e
 	github.com/untillpro/airs-ibusnats v0.0.0-20220602094345-4a16b77c871c
 	github.com/untillpro/godif v0.18.0
+	github.com/untillpro/goutils v0.0.0-20230314181136-99e8d7b881c8
 	github.com/valyala/bytebufferpool v1.0.0
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd

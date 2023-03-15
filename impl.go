@@ -17,10 +17,10 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	logger "github.com/heeus/core-logger"
 	istructs "github.com/heeus/core/istructs"
 	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
+	"github.com/untillpro/goutils/logger"
 	"github.com/valyala/bytebufferpool"
 )
 
@@ -48,8 +48,8 @@ var (
 
 func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus, busTimeout time.Duration, appsWSAmount map[istructs.AppQName]istructs.AppWSAmount) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
-		if logger.IsDebug() {
-			logger.Debug("serving ", req.Method, " ", req.URL.Path)
+		if logger.IsVerbose() {
+			logger.Verbose("serving ", req.Method, " ", req.URL.Path)
 		}
 		vars := mux.Vars(req)
 		queueRequest, ok := createRequest(req.Method, req, resp, appsWSAmount)
