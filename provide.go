@@ -144,7 +144,7 @@ func (s *httpsService) Prepare(work interface{}) error {
 		return err
 	}
 
-	s.server.TLSConfig = &tls.Config{GetCertificate: s.crtMgr.GetCertificate, MinVersion: tls.VersionTLS13}
+	s.server.TLSConfig = &tls.Config{GetCertificate: s.crtMgr.GetCertificate, MinVersion: tls.VersionTLS12} // VersionTLS13 is unsupported by Chargebee
 	return nil
 }
 
