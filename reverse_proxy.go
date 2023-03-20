@@ -39,6 +39,7 @@ func parseRoutes(routesURLs map[string]route, routes map[string]string, isRewrit
 // route        : /grafana=http://10.0.0.3:3000 : https://alpha.dev.untill.ru/grafana/foo -> http://10.0.0.3:3000/grafana/foo
 // route rewrite: /grafana-rewrite=http://10.0.0.3:3000/rewritten : https://alpha.dev.untill.ru/grafana-rewrite/foo -> http://10.0.0.3:3000/rewritten/foo
 // default route: http://10.0.0.3:3000/not-found : https://alpha.dev.untill.ru/unknown/foo -> http://10.0.0.3:3000/not-found/unknown/foo
+// route domain : resellerportal.dev.untill.ru=http://resellerportal : https://resellerportal.dev.untill.ru/foo -> http://resellerportal/foo
 func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err error) {
 	routes := map[string]route{}
 	reverseProxy := &httputil.ReverseProxy{Director: func(r *http.Request) {}} // director's job is done by redirectMatcher
@@ -59,14 +60,23 @@ func (s *httpService) getRedirectMatcher() (redirectMatcher mux.MatcherFunc, err
 		pathPrefix := bytebufferpool.Get()
 		defer bytebufferpool.Put(pathPrefix)
 
-		pathParts := strings.Split(req.URL.Path, "/")
 		hostNoPort := req.Host
 		if colonPos := strings.Index(hostNoPort, ":"); colonPos > 0 {
 			hostNoPort = hostNoPort[:colonPos]
 		}
-		if targetDomain, ok := s.RouteDomains[hostNoPort]; ok {
-			req.Host = strings.Replace(req.Host, hostNoPort, targetDomain, 1)
+		if targetDomainStr, ok := s.RouteDomains[hostNoPort]; ok {
+			targetDomain, err := url.Parse(targetDomainStr)
+			if err != nil {
+				panic(err)
+			}
+			targetDomain.Host = strings.Replace(req.Host, hostNoPort, targetDomain.Host, 1)
+
+			// route domain matched -> ignore the rest
+			redirect(req, req.URL.Path, targetDomain)
+			rm.Handler = reverseProxy
+			return true
 		}
+		pathParts := strings.Split(req.URL.Path, "/")
 		for _, pathPart := range pathParts[1:] { // ignore first empty path part. URL must have a trailing slash (already checked)
 			_, _ = pathPrefix.WriteString("/")      // error impossible
 			_, _ = pathPrefix.WriteString(pathPart) // error impossible
