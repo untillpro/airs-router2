@@ -17,11 +17,11 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	logger "github.com/heeus/core-logger"
 	istructs "github.com/heeus/core/istructs"
 	coreutils "github.com/heeus/core/utils"
 	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
+	"github.com/untillpro/goutils/logger"
 	"github.com/valyala/bytebufferpool"
 )
 
@@ -49,8 +49,8 @@ var (
 
 func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus ibus.IBus, busTimeout time.Duration, appsWSAmount map[istructs.AppQName]istructs.AppWSAmount) http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
-		if logger.IsDebug() {
-			logger.Debug("serving ", req.Method, " ", req.URL.Path)
+		if logger.IsVerbose() {
+			logger.Verbose("serving ", req.Method, " ", req.URL.Path)
 		}
 		vars := mux.Vars(req)
 		queueRequest, ok := createRequest(req.Method, req, resp, appsWSAmount)
@@ -216,7 +216,12 @@ func checkHandler() http.HandlerFunc {
 func createRequest(reqMethod string, req *http.Request, rw http.ResponseWriter, appsWSAmount map[istructs.AppQName]istructs.AppWSAmount) (res ibus.Request, ok bool) {
 	vars := mux.Vars(req)
 	wsidStr := vars[wSIDVar]
-	wsidInt, _ := strconv.ParseInt(wsidStr, 10, 64) // no need to check to err because of regexp in a handler
+	wsidInt, err := strconv.ParseInt(wsidStr, parseInt64Base, parseInt64Bits)
+	if err != nil {
+		//  impossible because of regexp in a handler
+		// notest
+		panic(err)
+	}
 	appQNameStr := vars[bp3AppOwner] + "/" + vars[bp3AppName]
 	wsid := istructs.WSID(wsidInt)
 	if appQName, err := istructs.ParseAppQName(appQNameStr); err == nil {
@@ -236,7 +241,6 @@ func createRequest(reqMethod string, req *http.Request, rw http.ResponseWriter, 
 		AppQName: appQNameStr,
 		Host:     req.Host,
 	}
-	var err error
 	if req.Body != nil && req.Body != http.NoBody {
 		if res.Body, err = ioutil.ReadAll(req.Body); err != nil {
 			http.Error(rw, "failed to read body", http.StatusInternalServerError)
@@ -256,10 +260,10 @@ func corsHandler(h http.Handler) http.HandlerFunc {
 	}
 }
 
-func writeTextResponse(w http.ResponseWriter, msg string, code int) bool {
+func writeTextResponse(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set(ContentType, "text/plain")
 	w.WriteHeader(code)
-	return writeResponse(w, msg)
+	writeResponse(w, msg)
 }
 
 func writeUnauthorized(rw http.ResponseWriter) {

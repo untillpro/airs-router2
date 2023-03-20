@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	logger "github.com/heeus/core-logger"
+	"github.com/untillpro/goutils/logger"
 	"github.com/valyala/bytebufferpool"
 )
 
@@ -113,8 +113,8 @@ func parseURL(urlStr string) (url *url.URL, err error) {
 }
 
 func redirect(req *http.Request, targetPath string, targetURL *url.URL) {
-	if logger.IsDebug() {
-		logger.Debug(fmt.Sprintf("reverse proxy: incoming %s %s%s, redirecting to %s%s", req.Method, req.Host, req.URL, targetURL.Host, targetPath))
+	if logger.IsVerbose() {
+		logger.Verbose(fmt.Sprintf("reverse proxy: incoming %s %s%s, redirecting to %s%s", req.Method, req.Host, req.URL, targetURL.Host, targetPath))
 	}
 	req.URL.Path = targetPath
 	req.Host = targetURL.Host

@@ -16,8 +16,8 @@ import (
 
 	"github.com/gorilla/mux"
 	in10n "github.com/heeus/core-in10n"
-	logger "github.com/heeus/core-logger"
 	istructs "github.com/heeus/core/istructs"
+	"github.com/untillpro/goutils/logger"
 )
 
 /*
@@ -172,7 +172,7 @@ func (s *httpService) updateHandler() http.HandlerFunc {
 
 		params := mux.Vars(req)
 		offset := params["offset"]
-		if off, err := strconv.ParseInt(offset, 10, 64); err == nil {
+		if off, err := strconv.ParseInt(offset, parseInt64Base, parseInt64Bits); err == nil {
 			s.n10n.Update(p, istructs.Offset(off))
 		}
 	}

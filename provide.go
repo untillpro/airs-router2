@@ -22,9 +22,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	logger "github.com/heeus/core-logger"
 	flag "github.com/spf13/pflag"
 	ibus "github.com/untillpro/airs-ibus"
+	"github.com/untillpro/goutils/logger"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
 )
@@ -49,10 +49,10 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 		bp.procBus = iprocbusmem.Provide(bp.ServiceChannels)
 		for i := 0; i < bp.BLOBWorkersNum; i++ {
 			httpService.blobWG.Add(1)
-			go func(i int) {
+			go func() {
 				defer httpService.blobWG.Done()
 				blobMessageHandler(hvmCtx, bp.procBus.ServiceChannel(0, 0), bp.BLOBStorage, bus, aBusTimeout)
-			}(i)
+			}()
 		}
 
 	}
@@ -91,9 +91,9 @@ func ProvideBP3(hvmCtx context.Context, rp RouterParams, aBusTimeout time.Durati
 		},
 	}
 	acmeServiceHadler := crtMgr.HTTPHandler(nil)
-	if logger.IsDebug() {
+	if logger.IsVerbose() {
 		acmeService.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			logger.Debug("acme server request:", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
+			logger.Verbose("acme server request:", r.Method, r.Host, r.RemoteAddr, r.RequestURI, r.URL.String())
 			acmeServiceHadler.ServeHTTP(rw, r)
 		})
 	} else {
@@ -134,7 +134,7 @@ func ProvideRouterParamsFromCmdLine() RouterParams {
 		panic(err)
 	}
 	if isVerbose {
-		logger.SetLogLevel(logger.LogLevelDebug)
+		logger.SetLogLevel(logger.LogLevelVerbose)
 	}
 	return rp
 }
@@ -144,7 +144,7 @@ func (s *httpsService) Prepare(work interface{}) error {
 		return err
 	}
 
-	s.server.TLSConfig = &tls.Config{GetCertificate: s.crtMgr.GetCertificate}
+	s.server.TLSConfig = &tls.Config{GetCertificate: s.crtMgr.GetCertificate, MinVersion: tls.VersionTLS12} // VersionTLS13 is unsupported by Chargebee
 	return nil
 }
 

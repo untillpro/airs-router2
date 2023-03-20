@@ -22,6 +22,7 @@ import (
 	iblobstorage "github.com/heeus/core-iblobstorage"
 	iprocbus "github.com/heeus/core-iprocbus"
 	istructs "github.com/heeus/core/istructs"
+	coreutils "github.com/heeus/core/utils"
 	ibus "github.com/untillpro/airs-ibus"
 )
 
@@ -174,7 +175,7 @@ func writeBLOB(ctx context.Context, wsid int64, appQName string, header map[stri
 	return blobID
 }
 
-func blobWriteMessageHandlerMultipart(bbm blobBaseMessage, blobStorage iblobstorage.IBLOBStorage, header map[string][]string, boundary string,
+func blobWriteMessageHandlerMultipart(bbm blobBaseMessage, blobStorage iblobstorage.IBLOBStorage, boundary string,
 	bus ibus.IBus, busTimeout time.Duration) {
 	defer close(bbm.doneChan)
 
@@ -207,7 +208,7 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage, blobStorage iblobstor
 		if len(contentType) == 0 {
 			contentType = "application/x-binary"
 		}
-		part.Header["Authorization"] = bbm.header["Authorization"] // add auth header for c.sys.*BLOBHelper
+		part.Header[coreutils.AuthorizationHeader] = bbm.header[coreutils.AuthorizationHeader] // add auth header for c.sys.*BLOBHelper
 		blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.resp, bbm.clusterAppBlobberID,
 			params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize), bus, busTimeout)
 		if blobID == 0 {
@@ -242,7 +243,7 @@ func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blob
 			case blobWriteDetailsSingle:
 				blobWriteMessageHandlerSingle(blobMessage.blobBaseMessage, blobDetails, blobStorage, blobMessage.header, bus, busTimeout)
 			case blobWriteDetailsMultipart:
-				blobWriteMessageHandlerMultipart(blobMessage.blobBaseMessage, blobStorage, blobMessage.header, blobDetails.boundary, bus, busTimeout)
+				blobWriteMessageHandlerMultipart(blobMessage.blobBaseMessage, blobStorage, blobDetails.boundary, bus, busTimeout)
 			}
 		case <-hvmCtx.Done():
 			return
@@ -252,7 +253,12 @@ func blobMessageHandler(hvmCtx context.Context, sc iprocbus.ServiceChannel, blob
 
 func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Request, details interface{}) {
 	vars := mux.Vars(req)
-	wsid, _ := strconv.ParseInt(vars[wSIDVar], 10, 64) // error impossible, checked by router url rule
+	wsid, err := strconv.ParseInt(vars[wSIDVar], parseInt64Base, parseInt64Bits)
+	if err != nil {
+		// impossible, checked by router url rule
+		// notest
+		panic(err)
+	}
 	mes := blobMessage{
 		blobBaseMessage: blobBaseMessage{
 			req:                 req,
@@ -266,11 +272,11 @@ func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Req
 		},
 		blobDetails: details,
 	}
-	if _, ok := mes.blobBaseMessage.header["Authorization"]; !ok {
-		if cookie, err := req.Cookie("Authorization"); err == nil {
+	if _, ok := mes.blobBaseMessage.header[coreutils.AuthorizationHeader]; !ok {
+		if cookie, err := req.Cookie(coreutils.AuthorizationHeader); err == nil {
 			if val, err := url.QueryUnescape(cookie.Value); err == nil {
 				// authorization token in cookies -> c.sys.DownloadBLOBHelper requires it in headers
-				mes.blobBaseMessage.header["Authorization"] = []string{val}
+				mes.blobBaseMessage.header[coreutils.AuthorizationHeader] = []string{val}
 			}
 		}
 	}
@@ -288,7 +294,12 @@ func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Req
 func (s *httpService) blobReadRequestHandler() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		vars := mux.Vars(req)
-		blobID, _ := strconv.ParseInt(vars[bp3BLOBID], 10, 64) // error impossible, checked by router url rule
+		blobID, err := strconv.ParseInt(vars[bp3BLOBID], parseInt64Base, parseInt64Bits)
+		if err != nil {
+			// impossible, checked by router url rule
+			// notest
+			panic(err)
+		}
 		principalToken := headerOrCookieAuth(resp, req)
 		if len(principalToken) == 0 {
 			return
@@ -329,7 +340,7 @@ func (s *httpService) blobWriteRequestHandler() http.HandlerFunc {
 }
 
 func headerAuth(rw http.ResponseWriter, req *http.Request) (principalToken string, isHandled bool) {
-	authHeader := req.Header.Get("Authorization")
+	authHeader := req.Header.Get(coreutils.AuthorizationHeader)
 	if len(authHeader) > 0 {
 		if len(authHeader) < bearerPrefixLen || authHeader[:bearerPrefixLen] != bearerPrefix {
 			writeUnauthorized(rw)
@@ -349,7 +360,7 @@ func headerOrCookieAuth(rw http.ResponseWriter, req *http.Request) (principalTok
 		return principalToken
 	}
 	for _, c := range req.Cookies() {
-		if c.Name == "Authorization" {
+		if c.Name == coreutils.AuthorizationHeader {
 			val, err := url.QueryUnescape(c.Value)
 			if err != nil {
 				writeTextResponse(rw, "failed to unescape cookie '"+c.Value+"'", http.StatusBadRequest)
@@ -409,6 +420,5 @@ func getBlobParams(rw http.ResponseWriter, req *http.Request) (name, mimeType, b
 		badRequest("boundary of multipart/form-data is not specified")
 		return
 	}
-	ok = true
-	return
+	return name, mimeType, boundary, true
 }
