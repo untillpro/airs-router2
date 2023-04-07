@@ -78,7 +78,7 @@ func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus 
 		}
 
 		if sections == nil {
-			resp.Header().Set(ContentType, res.ContentType)
+			resp.Header().Set(coreutils.ContentType, res.ContentType)
 			resp.WriteHeader(res.StatusCode)
 			writeResponse(resp, string(res.Data))
 			return
@@ -102,7 +102,7 @@ func discardSection(iSection ibus.ISection) {
 }
 
 func startSectionedResponse(w http.ResponseWriter) bool {
-	w.Header().Set(ContentType, "application/json")
+	w.Header().Set(coreutils.ContentType, coreutils.ApplicationJSON)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	return writeResponse(w, "{")
@@ -261,7 +261,7 @@ func corsHandler(h http.Handler) http.HandlerFunc {
 }
 
 func writeTextResponse(w http.ResponseWriter, msg string, code int) {
-	w.Header().Set(ContentType, "text/plain")
+	w.Header().Set(coreutils.ContentType, "text/plain")
 	w.WriteHeader(code)
 	writeResponse(w, msg)
 }

@@ -95,7 +95,7 @@ func blobReadMessageHandler(bbm blobBaseMessage, blobReadDetails blobReadDetails
 		if len(state.Error) > 0 {
 			return errors.New(state.Error)
 		}
-		bbm.resp.Header().Set(ContentType, state.Descr.MimeType)
+		bbm.resp.Header().Set(coreutils.ContentType, state.Descr.MimeType)
 		bbm.resp.Header().Add("Content-Disposition", fmt.Sprintf(`attachment;filename="%s"`, state.Descr.Name))
 		bbm.resp.WriteHeader(http.StatusOK)
 		return nil
@@ -204,11 +204,11 @@ func blobWriteMessageHandlerMultipart(bbm blobBaseMessage, blobStorage iblobstor
 		if mediaType != "form-data" {
 			writeTextResponse(bbm.resp, fmt.Sprintf("unsupported ContentDisposition mediaType of part number %d: %s", partNum, mediaType), http.StatusBadRequest)
 		}
-		contentType := part.Header.Get("Content-Type")
+		contentType := part.Header.Get(coreutils.ContentType)
 		if len(contentType) == 0 {
 			contentType = "application/x-binary"
 		}
-		part.Header[coreutils.AuthorizationHeader] = bbm.header[coreutils.AuthorizationHeader] // add auth header for c.sys.*BLOBHelper
+		part.Header[coreutils.Authorization] = bbm.header[coreutils.Authorization] // add auth header for c.sys.*BLOBHelper
 		blobID := writeBLOB(bbm.req.Context(), int64(bbm.wsid), bbm.appQName.String(), part.Header, bbm.resp, bbm.clusterAppBlobberID,
 			params["name"], contentType, blobStorage, part, int64(bbm.blobMaxSize), bus, busTimeout)
 		if blobID == 0 {
@@ -272,11 +272,11 @@ func (s *httpService) blobRequestHandler(resp http.ResponseWriter, req *http.Req
 		},
 		blobDetails: details,
 	}
-	if _, ok := mes.blobBaseMessage.header[coreutils.AuthorizationHeader]; !ok {
-		if cookie, err := req.Cookie(coreutils.AuthorizationHeader); err == nil {
+	if _, ok := mes.blobBaseMessage.header[coreutils.Authorization]; !ok {
+		if cookie, err := req.Cookie(coreutils.Authorization); err == nil {
 			if val, err := url.QueryUnescape(cookie.Value); err == nil {
 				// authorization token in cookies -> c.sys.DownloadBLOBHelper requires it in headers
-				mes.blobBaseMessage.header[coreutils.AuthorizationHeader] = []string{val}
+				mes.blobBaseMessage.header[coreutils.Authorization] = []string{val}
 			}
 		}
 	}
@@ -340,9 +340,9 @@ func (s *httpService) blobWriteRequestHandler() http.HandlerFunc {
 }
 
 func headerAuth(rw http.ResponseWriter, req *http.Request) (principalToken string, isHandled bool) {
-	authHeader := req.Header.Get(coreutils.AuthorizationHeader)
+	authHeader := req.Header.Get(coreutils.Authorization)
 	if len(authHeader) > 0 {
-		if len(authHeader) < bearerPrefixLen || authHeader[:bearerPrefixLen] != bearerPrefix {
+		if len(authHeader) < bearerPrefixLen || authHeader[:bearerPrefixLen] != coreutils.BearerPrefix {
 			writeUnauthorized(rw)
 			return "", true
 		}
@@ -360,13 +360,13 @@ func headerOrCookieAuth(rw http.ResponseWriter, req *http.Request) (principalTok
 		return principalToken
 	}
 	for _, c := range req.Cookies() {
-		if c.Name == coreutils.AuthorizationHeader {
+		if c.Name == coreutils.Authorization {
 			val, err := url.QueryUnescape(c.Value)
 			if err != nil {
 				writeTextResponse(rw, "failed to unescape cookie '"+c.Value+"'", http.StatusBadRequest)
 				return ""
 			}
-			if len(val) < bearerPrefixLen || val[:bearerPrefixLen] != bearerPrefix {
+			if len(val) < bearerPrefixLen || val[:bearerPrefixLen] != coreutils.BearerPrefix {
 				writeUnauthorized(rw)
 				return ""
 			}
@@ -391,7 +391,7 @@ func getBlobParams(rw http.ResponseWriter, req *http.Request) (name, mimeType, b
 		return
 	}
 
-	contentType := req.Header.Get("Content-Type")
+	contentType := req.Header.Get(coreutils.ContentType)
 	if isSingleBLOB {
 		if contentType == "multipart/form-data" {
 			badRequest(`name+mimeType query params and "multipart/form-data" Content-Type header are mutual exclusive`)
