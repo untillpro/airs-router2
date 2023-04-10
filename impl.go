@@ -17,11 +17,11 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	istructs "github.com/heeus/core/istructs"
-	coreutils "github.com/heeus/core/utils"
 	ibus "github.com/untillpro/airs-ibus"
 	ibusnats "github.com/untillpro/airs-ibusnats"
 	"github.com/untillpro/goutils/logger"
+	istructs "github.com/untillpro/voedger/pkg/istructs"
+	coreutils "github.com/untillpro/voedger/pkg/utils"
 	"github.com/valyala/bytebufferpool"
 )
 

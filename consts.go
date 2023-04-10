@@ -7,7 +7,7 @@ package router2
 import (
 	"time"
 
-	coreutils "github.com/heeus/core/utils"
+	coreutils "github.com/untillpro/voedger/pkg/utils"
 )
 
 const (

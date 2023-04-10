@@ -10,8 +10,8 @@ import (
 
 	in10n "github.com/heeus/core-in10n"
 	iprocbusmem "github.com/heeus/core-iprocbusmem"
-	istructs "github.com/heeus/core/istructs"
-	coreutils "github.com/heeus/core/utils"
+	istructs "github.com/untillpro/voedger/pkg/istructs"
+	coreutils "github.com/untillpro/voedger/pkg/utils"
 
 	"fmt"
 	"log"

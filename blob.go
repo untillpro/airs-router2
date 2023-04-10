@@ -21,9 +21,9 @@ import (
 	"github.com/gorilla/mux"
 	iblobstorage "github.com/heeus/core-iblobstorage"
 	iprocbus "github.com/heeus/core-iprocbus"
-	istructs "github.com/heeus/core/istructs"
-	coreutils "github.com/heeus/core/utils"
 	ibus "github.com/untillpro/airs-ibus"
+	istructs "github.com/untillpro/voedger/pkg/istructs"
+	coreutils "github.com/untillpro/voedger/pkg/utils"
 )
 
 type blobWriteDetailsSingle struct {
