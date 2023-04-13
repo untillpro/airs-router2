@@ -5,10 +5,6 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/golang/protobuf v1.4.2 h1:+Z5KGCizgyZCbGh1KZqA0fcLLkwbsjIzS4aV2v7wJX0=
 github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
-github.com/heeus/core-iprocbus v0.0.0-20221105102555-790258e6ff69 h1:pxo6uvstB7pFSszgAi/DAIoECf9GBPO3n0LzKPBUMCM=
-github.com/heeus/core-iprocbus v0.0.0-20221105102555-790258e6ff69/go.mod h1:xkFPnynD6/SVe2lBMODAxmy7voy7z/X2ZggEQeceXHQ=
-github.com/heeus/core-iprocbusmem v0.0.0-20221105102616-ae699781a51c h1:fkTiSyGM+UIDnZQ/CGNb6RB7GOKqRYoSqDdOCKEZ2G4=
-github.com/heeus/core-iprocbusmem v0.0.0-20221105102616-ae699781a51c/go.mod h1:IRttjEVw0ZTEKE7MZBslobncqzGybYUeBTzgoijXEo4=
 github.com/klauspost/compress v1.16.3 h1:XuJt9zzcnaz6a16/OU53ZjWp/v7/42WcR5t2a0PcNQY=
 github.com/klauspost/compress v1.16.3/go.mod h1:ntbaceVETuRiXiv4DpjP66DpAtAGkEQskQzEyD//IeE=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=
@@ -52,8 +48,8 @@ github.com/untillpro/godif v0.18.0 h1:m3/5jc8oJCyU5lYHeZwG0deq+lYoCXNFqAwVMhiQ+K
 github.com/untillpro/godif v0.18.0/go.mod h1:Yi639zQ/XMuW5ArnXOqs1zx+7o9POvgmtgaNyDh1lUE=
 github.com/untillpro/goutils v0.0.0-20230403105144-8ee1090b2167 h1:Q9IQeYXAuXRPIpGcvyZo4EkrYs65EJtsv+bk69ZToT8=
 github.com/untillpro/goutils v0.0.0-20230403105144-8ee1090b2167/go.mod h1:ipXVry4jug7qjhSKiwIM7j62//JrtNdOPSoFREN2pwk=
-github.com/untillpro/voedger v0.0.0-20230413105429-1d4194e0efbf h1:a0kx9sN0l6tfU1X5MHpCWNYNBbSWgvsGa/pOYxUvung=
-github.com/untillpro/voedger v0.0.0-20230413105429-1d4194e0efbf/go.mod h1:6W9XrosZ7yrla8lom6HuPN3PlgzojZ1/sgFiufoYiZ8=
+github.com/untillpro/voedger v0.0.0-20230413115452-51fdcccb7f9f h1:PWyckercyxw7+kQt4Wj9N8H8xdOCUKI+nOAzk8haBjA=
+github.com/untillpro/voedger v0.0.0-20230413115452-51fdcccb7f9f/go.mod h1:dXMWQ+5Ned9e8lM9OkKxaBOqRhQSpx7GaG6fg4y1ME4=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 golang.org/x/crypto v0.0.0-20210314154223-e6e6c4f2bb5b/go.mod h1:T9bdIzuCu7OtxOm1hfPfRQxPLYneinmdGuTeoZ9dtd4=

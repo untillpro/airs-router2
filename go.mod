@@ -4,15 +4,13 @@ go 1.20
 
 require (
 	github.com/gorilla/mux v1.8.0
-	github.com/heeus/core-iprocbus v0.0.0-20221105102555-790258e6ff69
-	github.com/heeus/core-iprocbusmem v0.0.0-20221105102616-ae699781a51c
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.2
 	github.com/untillpro/airs-ibus v0.0.0-20221105121917-d13e0967180d
 	github.com/untillpro/airs-ibusnats v0.0.0-20220602094345-4a16b77c871c
 	github.com/untillpro/godif v0.18.0
 	github.com/untillpro/goutils v0.0.0-20230403105144-8ee1090b2167
-	github.com/untillpro/voedger v0.0.0-20230413105429-1d4194e0efbf
+	github.com/untillpro/voedger v0.0.0-20230413115452-51fdcccb7f9f
 	github.com/valyala/bytebufferpool v1.0.0
 	golang.org/x/crypto v0.7.0
 	golang.org/x/net v0.8.0

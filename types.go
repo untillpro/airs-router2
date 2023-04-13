@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	iprocbus "github.com/heeus/core-iprocbus"
-	iprocbusmem "github.com/heeus/core-iprocbusmem"
+	"github.com/untillpro/voedger/pkg/iprocbus"
+	"github.com/untillpro/voedger/pkg/iprocbusmem"
 	"github.com/untillpro/voedger/pkg/iblobstorage"
 	"github.com/untillpro/voedger/pkg/in10n"
 	istructs "github.com/untillpro/voedger/pkg/istructs"
