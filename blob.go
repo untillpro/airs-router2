@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	iblobstorage "github.com/heeus/core-iblobstorage"
 	iprocbus "github.com/heeus/core-iprocbus"
 	ibus "github.com/untillpro/airs-ibus"
+	"github.com/untillpro/voedger/pkg/iblobstorage"
 	istructs "github.com/untillpro/voedger/pkg/istructs"
 	coreutils "github.com/untillpro/voedger/pkg/utils"
 )

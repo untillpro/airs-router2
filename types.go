@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	iblobstorage "github.com/heeus/core-iblobstorage"
-	in10n "github.com/heeus/core-in10n"
 	iprocbus "github.com/heeus/core-iprocbus"
 	iprocbusmem "github.com/heeus/core-iprocbusmem"
+	"github.com/untillpro/voedger/pkg/iblobstorage"
+	"github.com/untillpro/voedger/pkg/in10n"
 	istructs "github.com/untillpro/voedger/pkg/istructs"
 
 	"github.com/gorilla/mux"

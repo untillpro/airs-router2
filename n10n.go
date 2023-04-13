@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	in10n "github.com/heeus/core-in10n"
 	"github.com/untillpro/goutils/logger"
+	"github.com/untillpro/voedger/pkg/in10n"
 	istructs "github.com/untillpro/voedger/pkg/istructs"
 )
 

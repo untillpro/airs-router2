@@ -8,8 +8,8 @@ import (
 	"context"
 	"crypto/tls"
 
-	in10n "github.com/heeus/core-in10n"
 	iprocbusmem "github.com/heeus/core-iprocbusmem"
+	"github.com/untillpro/voedger/pkg/in10n"
 	istructs "github.com/untillpro/voedger/pkg/istructs"
 	coreutils "github.com/untillpro/voedger/pkg/utils"
 
