@@ -9,9 +9,9 @@ require (
 	github.com/untillpro/airs-ibus v0.0.0-20221105121917-d13e0967180d
 	github.com/untillpro/airs-ibusnats v0.0.0-20220602094345-4a16b77c871c
 	github.com/untillpro/godif v0.18.0
-	github.com/untillpro/goutils v0.0.0-20230403105144-8ee1090b2167
-	github.com/untillpro/voedger v0.0.0-20230413115452-51fdcccb7f9f
+	github.com/untillpro/goutils v0.0.0-20230413153406-ba6af4dbd062
 	github.com/valyala/bytebufferpool v1.0.0
+	github.com/voedger/voedger v0.0.0-20230417123432-872556225d35
 	golang.org/x/crypto v0.7.0
 	golang.org/x/net v0.8.0
 )

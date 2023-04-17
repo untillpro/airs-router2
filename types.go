@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/untillpro/voedger/pkg/iprocbus"
-	"github.com/untillpro/voedger/pkg/iprocbusmem"
-	"github.com/untillpro/voedger/pkg/iblobstorage"
-	"github.com/untillpro/voedger/pkg/in10n"
-	istructs "github.com/untillpro/voedger/pkg/istructs"
+	"github.com/voedger/voedger/pkg/iblobstorage"
+	"github.com/voedger/voedger/pkg/in10n"
+	"github.com/voedger/voedger/pkg/iprocbus"
+	"github.com/voedger/voedger/pkg/iprocbusmem"
+	istructs "github.com/voedger/voedger/pkg/istructs"
 
 	"github.com/gorilla/mux"
 	ibus "github.com/untillpro/airs-ibus"

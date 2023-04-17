@@ -20,10 +20,10 @@ import (
 
 	"github.com/gorilla/mux"
 	ibus "github.com/untillpro/airs-ibus"
-	"github.com/untillpro/voedger/pkg/iblobstorage"
-	"github.com/untillpro/voedger/pkg/iprocbus"
-	istructs "github.com/untillpro/voedger/pkg/istructs"
-	coreutils "github.com/untillpro/voedger/pkg/utils"
+	"github.com/voedger/voedger/pkg/iblobstorage"
+	"github.com/voedger/voedger/pkg/iprocbus"
+	istructs "github.com/voedger/voedger/pkg/istructs"
+	coreutils "github.com/voedger/voedger/pkg/utils"
 )
 
 type blobWriteDetailsSingle struct {

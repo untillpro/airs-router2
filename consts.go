@@ -7,7 +7,7 @@ package router2
 import (
 	"time"
 
-	coreutils "github.com/untillpro/voedger/pkg/utils"
+	coreutils "github.com/voedger/voedger/pkg/utils"
 )
 
 const (

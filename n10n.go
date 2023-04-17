@@ -16,8 +16,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/untillpro/goutils/logger"
-	"github.com/untillpro/voedger/pkg/in10n"
-	istructs "github.com/untillpro/voedger/pkg/istructs"
+	"github.com/voedger/voedger/pkg/in10n"
+	istructs "github.com/voedger/voedger/pkg/istructs"
 )
 
 /*
