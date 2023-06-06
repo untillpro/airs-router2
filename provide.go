@@ -17,6 +17,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strconv"
 	"time"
@@ -253,6 +254,13 @@ func (s *httpService) registerHandlers(busTimeout time.Duration, appsWSAmount ma
 	s.router.Handle("/n10n/subscribe", corsHandler(s.subscribeHandler())).Methods("GET")
 	s.router.Handle("/n10n/unsubscribe", corsHandler(s.unSubscribeHandler())).Methods("GET")
 	s.router.Handle("/n10n/update/{offset:[0-9]{1,10}}", corsHandler(s.updateHandler()))
+
+	// pprof profile
+	s.router.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+	s.router.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+	s.router.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+	s.router.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+	s.router.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 
 	// must be the last handler
 	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
