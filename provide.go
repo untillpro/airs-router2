@@ -257,6 +257,7 @@ func (s *httpService) registerHandlers(busTimeout time.Duration, appsWSAmount ma
 
 	// pprof profile
 	s.router.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+	s.router.Handle("/debug/pprof/{cmd}", http.HandlerFunc(pprof.Index))
 	s.router.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
 	s.router.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
 	s.router.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
