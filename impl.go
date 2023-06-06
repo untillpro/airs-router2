@@ -73,6 +73,7 @@ func partitionHandler(queueNumberOfPartitions ibusnats.QueuesPartitionsMap, bus 
 		defer cancel() // to avoid context leak
 		res, sections, secErr, err := bus.SendRequest2(requestCtx, queueRequest, busTimeout)
 		if err != nil {
+			logger.Error("IBus.SendRequest2 failed on ", queueRequest.Resource, ":", err, ". Body:\n", string(queueRequest.Body))
 			writeTextResponse(resp, err.Error(), http.StatusInternalServerError)
 			return
 		}
