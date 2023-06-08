@@ -7,6 +7,7 @@ package router2
 import (
 	"context"
 	"crypto/tls"
+	"strings"
 
 	"github.com/voedger/voedger/pkg/in10n"
 	"github.com/voedger/voedger/pkg/iprocbusmem"
@@ -256,12 +257,16 @@ func (s *httpService) registerHandlers(busTimeout time.Duration, appsWSAmount ma
 	s.router.Handle("/n10n/update/{offset:[0-9]{1,10}}", corsHandler(s.updateHandler()))
 
 	// pprof profile
-	s.router.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
-	s.router.Handle("/debug/pprof/{cmd}", http.HandlerFunc(pprof.Index))
-	s.router.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-	s.router.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-	s.router.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-	s.router.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+	s.router.Handle("/debug/pprof", http.HandlerFunc(pprof.Index))
+	s.router.Handle("/debug/cmdline", http.HandlerFunc(pprof.Cmdline))
+	s.router.Handle("/debug/profile", http.HandlerFunc(pprof.Profile))
+	s.router.Handle("/debug/symbol", http.HandlerFunc(pprof.Symbol))
+	s.router.Handle("/debug/trace", http.HandlerFunc(pprof.Trace))
+	s.router.Handle("/debug/{cmd}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		newPath, _ := strings.CutPrefix(r.URL.Path, "/debug/")
+		r.URL.Path = "/debug/pprof/" + newPath
+		pprof.Index(w, r)
+	})) // must be the last
 
 	// must be the last handler
 	s.router.MatcherFunc(redirectMatcher).Name("reverse proxy")
