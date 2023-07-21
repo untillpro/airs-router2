@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -30,17 +31,20 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			flusher   http.Flusher
 			err       error
 		)
+		rw.Header().Set("Content-Type", "text/event-stream")
+		rw.Header().Set("Cache-Control", "no-cache")
+		rw.Header().Set("Connection", "keep-alive")
 		jsonParam, ok := req.URL.Query()["payload"]
 		if !ok || len(jsonParam[0]) < 1 {
+			log.Println("Query parameter with payload (SubjectLogin id and ProjectionKey) is missing.")
 			err = errors.New("query parameter with payload (SubjectLogin id and ProjectionKey) is missing")
-			logger.Error(err)
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 			return
 		}
 		err = json.Unmarshal([]byte(jsonParam[0]), &urlParams)
 		if err != nil {
+			log.Println(err)
 			err = fmt.Errorf("cannot unmarshal input payload %w", err)
-			logger.Error(err)
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -52,26 +56,23 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 		}
 		channel, err = s.n10n.NewChannel(urlParams.SubjectLogin, 24*time.Hour)
 		if err != nil {
-			logger.Error(err)
+			log.Println(err)
 			http.Error(rw, "Error create new channel", http.StatusTooManyRequests)
 			return
 		}
 		if _, err = fmt.Fprintf(rw, "event: channelId\ndata: %s\n\n", channel); err != nil {
-			logger.Error("failed to write created channel id to client:", err)
+			log.Println("failed to write created channel id to client:", err)
 			return
 		}
+		flusher.Flush()
 		for _, projection := range urlParams.ProjectionKey {
 			err = s.n10n.Subscribe(channel, projection)
 			if err != nil {
-				logger.Error(err)
+				log.Println(err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
-		rw.Header().Set("Content-Type", "text/event-stream")
-		rw.Header().Set("Cache-Control", "no-cache")
-		rw.Header().Set("Connection", "keep-alive")
-		flusher.Flush() // header status 200ok is added here
 		ch := make(chan UpdateUnit)
 		go func() {
 			defer close(ch)
@@ -95,12 +96,12 @@ func (s *httpService) subscribeAndWatchHandler() http.HandlerFunc {
 			projection, err = json.Marshal(&result.Projection)
 			if err == nil {
 				if _, err = fmt.Fprintf(rw, "event: %s\n", projection); err != nil {
-					logger.Error("failed to write projection key event to client:", err)
+					log.Println("failed to write projection key event to client:", err)
 				}
 			}
 			offset, _ = json.Marshal(&result.Offset) // error impossible
 			if _, err = fmt.Fprintf(rw, "data: %s\n\n", offset); err != nil {
-				logger.Error("failed to write projection key offset to client:", err)
+				log.Println("failed to write projection key offset to client:", err)
 			}
 			flusher.Flush()
 		}
@@ -121,7 +122,7 @@ func (s *httpService) subscribeHandler() http.HandlerFunc {
 		for _, projection := range parameters.ProjectionKey {
 			err = s.n10n.Subscribe(parameters.Channel, projection)
 			if err != nil {
-				logger.Error(err)
+				log.Println(err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -143,7 +144,7 @@ func (s *httpService) unSubscribeHandler() http.HandlerFunc {
 		for _, projection := range parameters.ProjectionKey {
 			err = s.n10n.Unsubscribe(parameters.Channel, projection)
 			if err != nil {
-				logger.Error(err)
+				log.Println(err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -158,13 +159,13 @@ func (s *httpService) updateHandler() http.HandlerFunc {
 		var p in10n.ProjectionKey
 		body, err := ioutil.ReadAll(req.Body)
 		if err != nil {
-			logger.Error(err)
+			log.Println(err)
 			http.Error(resp, "Error when read request body", http.StatusInternalServerError)
 			return
 		}
 		err = json.Unmarshal(body, &p)
 		if err != nil {
-			logger.Error(err)
+			log.Println(err)
 			http.Error(resp, "Error when parse request body", http.StatusBadRequest)
 			return
 		}
@@ -180,14 +181,13 @@ func (s *httpService) updateHandler() http.HandlerFunc {
 func getJsonPayload(req *http.Request, payload *subscriberParamsType) (err error) {
 	jsonParam, ok := req.URL.Query()["payload"]
 	if !ok || len(jsonParam[0]) < 1 {
-		err = errors.New("url parameter with payload (channel id and projection key) is missing")
-		logger.Error(err)
-		return err
+		log.Println("Url parameter with payload (channel id and projection key) is missing")
+		return errors.New("url parameter with payload (channel id and projection key) is missing")
 	}
 	err = json.Unmarshal([]byte(jsonParam[0]), payload)
 	if err != nil {
+		log.Println(err)
 		err = fmt.Errorf("cannot unmarshal input payload %w", err)
-		logger.Error(err)
 	}
 	return err
 }
